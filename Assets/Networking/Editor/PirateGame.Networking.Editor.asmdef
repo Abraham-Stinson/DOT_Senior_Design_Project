@@ -1,0 +1,5 @@
+{
+  "name": "PirateGame.Networking.Editor",
+  "references": ["PirateGame.Networking.Core", "PirateGame.Networking", "FishNet.Runtime", "FishySteamworks"],
+  "includePlatforms": ["Editor"]
+}

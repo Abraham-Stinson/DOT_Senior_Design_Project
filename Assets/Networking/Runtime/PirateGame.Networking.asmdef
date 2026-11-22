@@ -1,0 +1,6 @@
+{
+  "name": "PirateGame.Networking",
+  "rootNamespace": "PirateGame.Networking",
+  "references": ["PirateGame.Networking.Core", "FishNet.Runtime", "FishySteamworks", "com.rlabrecque.steamworks.net"],
+  "includePlatforms": ["Editor", "WindowsStandalone64", "WindowsStandalone32", "LinuxStandalone64", "macOSStandalone"]
+}

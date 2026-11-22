@@ -1,0 +1,32 @@
+{
+  "date": "2026-11-22",
+  "unity": "6000.3.26f1",
+  "execution": "Unity batch mode in a temporary copy of the existing project; original open scene preserved",
+  "configurationValidated": true,
+  "editMode": { "total": 13, "passed": 13, "failed": 0, "skipped": 0, "evidence": "Logs/M0A-EditMode.xml" },
+  "playMode": { "total": 2, "passed": 2, "failed": 0, "skipped": 0, "evidence": "Logs/M0A-PlayMode.xml" },
+  "singleAccountSteamHostSmoke": {
+    "result": "passed",
+    "cycles": 2,
+    "checks": ["Steam API init and login", "Steam lobby creation", "host server and local client authentication", "reliable probe and server ACK", "leave and recreate", "callback/socket/API cleanup"],
+    "remotePeerValidated": false
+  },
+  "windowsBuild": {
+    "result": "Succeeded",
+    "target": "StandaloneWindows64",
+    "backend": "Mono",
+    "development": true,
+    "scene": "Assets/Scenes/NetworkTest.unity",
+    "errors": 0,
+    "warnings": 144,
+    "reportedSizeBytes": 171965528,
+    "deliveredExecutable": "Builds/WindowsNetworkTest/Untitled Pirate Game.exe",
+    "exeSha256": "b7cca8b82003185f22644d0ee1c23b3640de1b996802d4f5d0501e287011afa6",
+    "evidence": "Logs/M0A-WindowsBuild.log"
+  },
+  "notValidated": ["two-account remote Steam connection and relay/NAT", "real Overlay friend invitation", "cold-start invite routing", "remote host loss and owner migration rejection", "third real Steam account capacity rejection", "standalone Steam-closed/retry flow", "visual UI inspection", "IL2CPP and non-Windows builds"],
+  "sourceAudit": { "sourceAndAssemblyFilesMatched": 25, "officialFishNetReleaseFileDifferences": 0 },
+  "renderPipelineChanged": false,
+  "existingSampleSceneChanged": false,
+  "automaticGitCommitPush": false
+}

@@ -1,0 +1,6 @@
+{
+  "name": "PirateGame.Networking.EditMode.Tests",
+  "references": ["PirateGame.Networking.Core", "PirateGame.Networking", "PirateGame.Networking.Editor", "FishNet.Runtime", "FishySteamworks", "com.rlabrecque.steamworks.net"],
+  "includePlatforms": ["Editor"],
+  "optionalUnityReferences": ["TestAssemblies"]
+}

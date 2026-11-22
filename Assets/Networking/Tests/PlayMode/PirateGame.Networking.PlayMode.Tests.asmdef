@@ -1,0 +1,5 @@
+{
+  "name": "PirateGame.Networking.PlayMode.Tests",
+  "references": ["PirateGame.Networking.Core", "PirateGame.Networking", "FishNet.Runtime"],
+  "optionalUnityReferences": ["TestAssemblies"]
+}

@@ -1,0 +1,5 @@
+{
+  "name": "PirateGame.Networking.Core",
+  "rootNamespace": "PirateGame.Networking",
+  "noEngineReferences": true
+}

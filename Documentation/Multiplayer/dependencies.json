@@ -1,0 +1,45 @@
+{
+  "verifiedOn": "2026-11-22",
+  "unity": "6000.3.26f1 (de8167e7440c)",
+  "packages": [
+    {
+      "name": "FishNet",
+      "version": "4.7.4R",
+      "packageVersion": "4.7.4",
+      "installation": "embedded UPM",
+      "path": "Packages/com.firstgeargames.fishnet",
+      "source": "https://github.com/FirstGearGames/FishNet/releases/download/4.7.4/FishNetworking.4.7.4R.unitypackage",
+      "archiveSha256": "6f2c1d22df8f4649cc5bc75a579536c15239dc76b9488617fe986f52c6a295b0",
+      "note": "Official release asset, NOT the broken a3627529 Git tag source. No source code patches."
+    },
+    {
+      "name": "Steamworks.NET",
+      "version": "2025.165.0",
+      "steamworksSdk": "1.65",
+      "installation": "embedded UPM",
+      "path": "Packages/com.rlabrecque.steamworks.net",
+      "source": "https://github.com/rlabrecque/Steamworks.NET/releases/tag/2025.165.0",
+      "commit": "ea51b029a5dbcb47a99d3c1fac930b811672ed32",
+      "sourceZipSha256": "e14b92c392eb5d01de687e5e6163c51d43ddde53ca97e09ce0beec65d8670aa9"
+    },
+    {
+      "name": "FishySteamworks",
+      "version": "4.1.1 + M0-A local patches",
+      "installation": "vendored Assets source with assembly definition",
+      "path": "Assets/ThirdParty/FishySteamworks",
+      "source": "https://github.com/FirstGearGames/FishySteamworks/releases/tag/4.1.1",
+      "commit": "21e858249249e2c322365fe9fefbe865f290b0d9",
+      "sourceZipSha256": "6b3f162316d2d3c16720ff6abb495c78af83983c7631d52e26033c59011608ae",
+      "localPatchNotes": "Assets/ThirdParty/FishySteamworks/LOCAL-PATCHES.md"
+    },
+    {
+      "name": "com.unity.nuget.newtonsoft-json",
+      "version": "3.2.2",
+      "requestedMinimum": "3.2.1",
+      "installation": "FishNet transitive UPM dependency"
+    }
+  ],
+  "unchangedRenderPipeline": "Universal RP 17.3.0; existing PC/Mobile 3D renderers",
+  "networkingApi": "ISteamNetworkingSockets + ISteamNetworkingUtils",
+  "rejectedSource": "FishNet tag 4.7.4 / a3627529c1875ebe6313c2fc9e2326cbd5d76719: broken optional Yak code; https://github.com/FirstGearGames/FishNet/issues/1110"
+}
