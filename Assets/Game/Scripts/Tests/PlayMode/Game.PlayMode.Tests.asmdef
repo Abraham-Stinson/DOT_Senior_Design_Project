@@ -1,0 +1,25 @@
+{
+  "name": "Game.PlayMode.Tests",
+  "rootNamespace": "Game.Tests.PlayMode",
+  "references": [
+    "Game.Core",
+    "Game.Data",
+    "Game.Input",
+    "Game.Gameplay",
+    "PirateGame.Networking.Core",
+    "PirateGame.Networking",
+    "FishNet.Runtime"
+  ],
+  "includePlatforms": [],
+  "excludePlatforms": [],
+  "allowUnsafeCode": false,
+  "overrideReferences": false,
+  "precompiledReferences": [],
+  "autoReferenced": false,
+  "defineConstraints": [],
+  "versionDefines": [],
+  "noEngineReferences": false,
+  "optionalUnityReferences": [
+    "TestAssemblies"
+  ]
+}

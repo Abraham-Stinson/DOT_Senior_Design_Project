@@ -1,0 +1,28 @@
+{
+  "name": "Game.Editor",
+  "rootNamespace": "Game.Editor",
+  "references": [
+    "Game.Core",
+    "Game.Data",
+    "Game.Input",
+    "Game.Gameplay",
+    "Game.UI",
+    "FishNet.Runtime",
+    "PirateGame.Networking.Core",
+    "PirateGame.Networking",
+    "FishySteamworks",
+    "UnityEngine.UI",
+    "Unity.InputSystem"
+  ],
+  "includePlatforms": [
+    "Editor"
+  ],
+  "excludePlatforms": [],
+  "allowUnsafeCode": false,
+  "overrideReferences": false,
+  "precompiledReferences": [],
+  "autoReferenced": false,
+  "defineConstraints": [],
+  "versionDefines": [],
+  "noEngineReferences": false
+}

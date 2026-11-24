@@ -1,0 +1,43 @@
+%YAML 1.1
+%TAG !u! tag:unity3d.com,2011:
+--- !u!114 &11400000
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 0}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: 7a63e4c86dd723244868aa502348af4c, type: 3}
+  m_Name: Card_20_GoldMine
+  m_EditorClassIdentifier: Game.Data::Game.Data.StructureCardSO
+  _cardId: 20
+  _displayName: Gold Mine
+  _icon: {fileID: 0}
+  _category: 4
+  _isLockedInSlotZero: 0
+  _isDeckSelectable: 1
+  _unlockedByDefault: 0
+  _unlockCostSoftCurrency: 150
+  _buildCostGold: 80
+  _buildDurationSeconds: 2
+  _buildCooldownSeconds: 1
+  _maxHealth: 110
+  _footprintSize: {x: 1.8, y: 1.4}
+  _territoryExpansionRadius: 0
+  _incomePerSecondBonus: 8
+  _requiresGroundSupport: 1
+  _requiresGoldDeposit: 1
+  _canFireWeapon: 0
+  _weaponDamage: 0
+  _weaponFireCooldownSeconds: 10
+  _weaponRange: 0
+  _projectileSpeed: 10
+  _projectileGravityScale: 1
+  _splashRadius: 0
+  _canTargetAirships: 0
+  _preferHighArc: 0
+  _minAimAngleDegrees: 5
+  _maxAimAngleDegrees: 85
+  _structurePrefab: {fileID: 1234536712055230009, guid: ae50290f0694a0d4292f35dba84fb288, type: 3}

@@ -1,0 +1,29 @@
+{
+  "name": "Game.EditMode.Tests",
+  "rootNamespace": "Game.Tests.EditMode",
+  "references": [
+    "Game.Core",
+    "Game.Data",
+    "Game.Persistence",
+    "Game.Input",
+    "Game.Gameplay",
+    "Game.UI",
+    "PirateGame.Networking.Core",
+    "PirateGame.Networking",
+    "FishNet.Runtime"
+  ],
+  "includePlatforms": [
+    "Editor"
+  ],
+  "excludePlatforms": [],
+  "allowUnsafeCode": false,
+  "overrideReferences": false,
+  "precompiledReferences": [],
+  "autoReferenced": false,
+  "defineConstraints": [],
+  "versionDefines": [],
+  "noEngineReferences": false,
+  "optionalUnityReferences": [
+    "TestAssemblies"
+  ]
+}
