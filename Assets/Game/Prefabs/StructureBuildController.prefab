@@ -107,5 +107,6 @@ MonoBehaviour:
   _networkObjectCache: {fileID: 0}
   _maxBuildRange: 10
   _maxGroundPlacementDistance: 3.25
+  _sellRefundRatio: 0.5
   _defaultStructurePrefab: {fileID: 4498585241151318003, guid: ae50290f0694a0d4292f35dba84fb288, type: 3}
   _cardCatalog: {fileID: 11400000, guid: 5eccfefbb917be04aabb3570833e493b, type: 2}

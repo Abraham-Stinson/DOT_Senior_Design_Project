@@ -738,7 +738,8 @@ namespace Game.Tests.PlayMode
             yield return Until(() => lastFeedback.HasValue && !ship0.IsCarrying, 3f, "Cannon did not deploy.");
             Assert.That(lastFeedback.Value.Accepted, Is.True);
 
-            // 3. Dock onto a Gold Mine -> Left/Right selects Sell -> Confirm refunds gold, releases deposit, undocks, despawns.
+            // 3. Dock onto Gold Mine (Economy) -> only Sell is offered (SupportsUseAction == false, no bogus Use);
+            // cycling Left/Right keeps Sell selected, and confirming refunds gold, releases deposit, undocks, despawns.
             StructureBase goldMine = SpawnStructureServer(
                 structurePrefabGo.GetComponent<StructureBase>(),
                 cardId: 20,
@@ -761,12 +762,15 @@ namespace Game.Tests.PlayMode
             yield return Until(
                 () => ship0.Docking.IsDocked
                       && ship0.Docking.SubMode == DockedInteractionSubMode.StructureActionSelect
-                      && ship0.Docking.State.SelectedAction == DockedStructureAction.Use,
+                      && !ship0.Docking.State.SupportsUseAction
+                      && ship0.Docking.State.SelectedAction == DockedStructureAction.Sell,
                 3f,
-                "Docking onto Gold Mine did not open StructureActionSelect.");
+                "Docking onto Gold Mine did not open sell-only StructureActionSelect.");
 
             ship0.Docking.RequestCycleDockedSelection(1);
-            yield return Until(() => ship0.Docking.State.SelectedAction == DockedStructureAction.Sell, 2f, "Cycling Right did not highlight Sell.");
+            ship0.Docking.RequestCycleDockedSelection(-1);
+            yield return null;
+            Assert.That(ship0.Docking.State.SelectedAction, Is.EqualTo(DockedStructureAction.Sell), "Gold Mine must not switch to bogus Use action.");
 
             int goldBeforeSell = seat0.Gold;
             int soldRefund = 0;

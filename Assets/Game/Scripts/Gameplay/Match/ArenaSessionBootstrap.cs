@@ -412,6 +412,7 @@ namespace Game.Gameplay
             out ushort targetCardId,
             out int sellRefundGold,
             out bool canUseTarget,
+            out bool supportsUseAction,
             out float targetWeaponCooldownRemaining,
             out Vector2 dockedWorldAnchor)
         {
@@ -429,6 +430,7 @@ namespace Game.Gameplay
                 targetCardId = dock.TargetCardId;
                 sellRefundGold = dock.TargetSellRefundGold;
                 canUseTarget = dock.CanUseTarget;
+                supportsUseAction = dock.SupportsUseAction;
                 targetWeaponCooldownRemaining = ship.Docking.TargetWeaponCooldownRemaining;
                 dockedWorldAnchor = ship.Docking.CurrentAnchorPosition;
                 return true;
@@ -441,6 +443,7 @@ namespace Game.Gameplay
             targetCardId = 0;
             sellRefundGold = 0;
             canUseTarget = false;
+            supportsUseAction = false;
             targetWeaponCooldownRemaining = 0f;
             dockedWorldAnchor = Vector2.zero;
             return false;

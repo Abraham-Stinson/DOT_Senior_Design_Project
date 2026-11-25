@@ -74,6 +74,20 @@ namespace Game.Tests.EditMode
         }
 
         [Test]
+        public void StructureInteractionRules_ExcludesGoldMineFromUseActionAndAllowsOtherNonBaseStructures()
+        {
+            Assert.That(StructureInteractionRules.SupportsUseAction(StructureCategory.Economy), Is.False);
+            Assert.That(StructureInteractionRules.GetDefaultDockedAction(StructureCategory.Economy), Is.EqualTo(DockedStructureAction.Sell));
+            Assert.That(DockedMenuNavigator.CycleStructureAction(DockedStructureAction.Sell, 1, supportsUseAction: false), Is.EqualTo(DockedStructureAction.Sell));
+            Assert.That(DockedMenuNavigator.CycleStructureAction(DockedStructureAction.Sell, -1, supportsUseAction: false), Is.EqualTo(DockedStructureAction.Sell));
+
+            Assert.That(StructureInteractionRules.SupportsUseAction(StructureCategory.Offense), Is.True);
+            Assert.That(StructureInteractionRules.SupportsUseAction(StructureCategory.Territory), Is.True);
+            Assert.That(StructureInteractionRules.SupportsUseAction(StructureCategory.Defense), Is.True);
+            Assert.That(StructureInteractionRules.SupportsUseAction(StructureCategory.Core), Is.False);
+        }
+
+        [Test]
         public void WeaponFireInputGate_BlocksCarriedOverConfirmPressAndFiresOnlyOnFreshPressAfterRelease()
         {
             var gate = new WeaponFireInputGate();

@@ -44,6 +44,7 @@ namespace Game.Core
         public ushort TargetCardId;
         public int TargetSellRefundGold;
         public bool CanUseTarget;
+        public bool SupportsUseAction;
 
         public bool IsDocked => Mode != AirshipDockMode.Flying;
 
@@ -60,7 +61,8 @@ namespace Game.Core
                 SelectedAction = DockedStructureAction.Use,
                 TargetCardId = 0,
                 TargetSellRefundGold = 0,
-                CanUseTarget = false
+                CanUseTarget = false,
+                SupportsUseAction = false
             };
         }
 
@@ -76,7 +78,8 @@ namespace Game.Core
                 selectedAction: DockedStructureAction.Use,
                 targetCardId: 0,
                 sellRefundGold: 0,
-                canUseTarget: false);
+                canUseTarget: false,
+                supportsUseAction: false);
         }
 
         public static AirshipDockState CreateDockedInteraction(
@@ -89,7 +92,8 @@ namespace Game.Core
             DockedStructureAction selectedAction,
             ushort targetCardId,
             int sellRefundGold,
-            bool canUseTarget)
+            bool canUseTarget,
+            bool supportsUseAction = false)
         {
             return new AirshipDockState
             {
@@ -102,7 +106,8 @@ namespace Game.Core
                 SelectedAction = selectedAction,
                 TargetCardId = targetCardId,
                 TargetSellRefundGold = Math.Max(0, sellRefundGold),
-                CanUseTarget = canUseTarget
+                CanUseTarget = canUseTarget,
+                SupportsUseAction = supportsUseAction
             };
         }
     }

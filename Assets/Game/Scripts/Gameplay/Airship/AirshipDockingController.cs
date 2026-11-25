@@ -197,7 +197,7 @@ namespace Game.Gameplay
             }
             else if (next.SubMode == DockedInteractionSubMode.StructureActionSelect)
             {
-                next.SelectedAction = DockedMenuNavigator.CycleStructureAction(next.SelectedAction, delta);
+                next.SelectedAction = DockedMenuNavigator.CycleStructureAction(next.SelectedAction, delta, next.SupportsUseAction);
                 _dockState.Value = next;
             }
         }
@@ -240,7 +240,7 @@ namespace Game.Gameplay
 
             if (current.SelectedAction == DockedStructureAction.Use)
             {
-                if (targetStructure.IsWeaponReadyForControl)
+                if (current.SupportsUseAction && targetStructure.IsWeaponReadyForControl)
                 {
                     targetStructure.SetWeaponControlActiveServer(true);
                     _enteredWeaponControlServerTick = TimeManager != null ? TimeManager.Tick : 0u;
@@ -381,6 +381,8 @@ namespace Game.Gameplay
 
             if (best.Dockable is StructureBase structure && structure.Category != StructureCategory.Core)
             {
+                bool supportsUse = StructureInteractionRules.SupportsUseAction(structure.Category);
+                DockedStructureAction initialAction = StructureInteractionRules.GetDefaultDockedAction(structure.Category);
                 int sellRefund = _context.BuildController != null
                     ? _context.BuildController.ComputeSellRefundForCard(structure.CardId)
                     : 0;
@@ -391,10 +393,11 @@ namespace Game.Gameplay
                     DockedTargetKind.NonBaseStructure,
                     DockedInteractionSubMode.StructureActionSelect,
                     selectedDeckSlot: 0,
-                    selectedAction: DockedStructureAction.Use,
+                    selectedAction: initialAction,
                     targetCardId: structure.CardId,
                     sellRefundGold: sellRefund,
-                    canUseTarget: structure.IsWeaponReadyForControl);
+                    canUseTarget: supportsUse && structure.IsWeaponReadyForControl,
+                    supportsUseAction: supportsUse);
             }
             else
             {
@@ -409,7 +412,8 @@ namespace Game.Gameplay
                     selectedAction: DockedStructureAction.Use,
                     targetCardId: slot0Card,
                     sellRefundGold: 0,
-                    canUseTarget: false);
+                    canUseTarget: false,
+                    supportsUseAction: false);
             }
 
             NotifyDockChangedObserversRpc(true, anchor);
@@ -444,7 +448,7 @@ namespace Game.Gameplay
             {
                 if (SubMode == DockedInteractionSubMode.StructureActionSelect)
                 {
-                    bool canUseNow = structure.IsWeaponReadyForControl;
+                    bool canUseNow = _dockState.Value.SupportsUseAction && structure.IsWeaponReadyForControl;
                     if (canUseNow != _dockState.Value.CanUseTarget)
                     {
                         AirshipDockState updated = _dockState.Value;

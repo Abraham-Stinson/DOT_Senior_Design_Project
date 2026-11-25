@@ -134,6 +134,7 @@ namespace Game.Editor
             try
             {
                 var cameraGo = new GameObject("Main Camera");
+                cameraGo.tag = "MainCamera";
                 var cam = cameraGo.AddComponent<Camera>();
                 cam.orthographic = true;
                 cam.transform.position = new Vector3(0f, 0f, -10f);
@@ -216,12 +217,17 @@ namespace Game.Editor
             try
             {
                 var cameraGo = new GameObject("Main Camera");
+                cameraGo.tag = "MainCamera";
                 var cam = cameraGo.AddComponent<Camera>();
                 cam.orthographic = true;
                 cam.orthographicSize = 9f;
                 cam.transform.position = new Vector3(0f, 3f, -10f);
                 cam.clearFlags = CameraClearFlags.SolidColor;
                 cam.backgroundColor = new Color(0.078f, 0.106f, 0.161f);
+
+                var eventSystemGo = new GameObject("EventSystem");
+                eventSystemGo.AddComponent<EventSystem>();
+                eventSystemGo.AddComponent<InputSystemUIInputModule>();
 
                 var envRoot = new GameObject("ArenaEnvironment");
                 CreateGroundBlock("Ground_Base", envRoot.transform, greyboxSprite, new Vector3(0f, -4f, 0f), new Vector3(36f, 4f, 1f), new Color(0.21f, 0.24f, 0.29f));
@@ -339,6 +345,9 @@ namespace Game.Editor
 
                 var hud = netRoot.AddComponent<ArenaBootstrapHud>();
                 SetRef(hud, "_bootstrap", bootstrap);
+
+                var worldDockedUi = netRoot.AddComponent<DockedStructureWorldUI>();
+                SetRef(worldDockedUi, "_bootstrap", bootstrap);
 
                 netRoot.SetActive(true);
                 EditorSceneManager.SaveScene(arenaScene, ArenaScenePath);

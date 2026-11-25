@@ -22,8 +22,16 @@ namespace Game.Core
             return ((normalized + step) % slotCount + slotCount) % slotCount;
         }
 
-        public static DockedStructureAction CycleStructureAction(DockedStructureAction current, int delta)
+        public static DockedStructureAction CycleStructureAction(
+            DockedStructureAction current,
+            int delta,
+            bool supportsUseAction = true)
         {
+            if (!supportsUseAction)
+            {
+                return DockedStructureAction.Sell;
+            }
+
             if (delta == 0)
             {
                 return current;
@@ -32,6 +40,25 @@ namespace Game.Core
             return current == DockedStructureAction.Use
                 ? DockedStructureAction.Sell
                 : DockedStructureAction.Use;
+        }
+    }
+
+    public static class StructureInteractionRules
+    {
+        /// <summary>
+        /// Gold Mine (Economy) only passively generates gold and has no active 'Use' interaction;
+        /// Base (Core) opens the deck shop; all other non-Base structures support both Use and Sell.
+        /// </summary>
+        public static bool SupportsUseAction(StructureCategory category)
+        {
+            return category != StructureCategory.Core && category != StructureCategory.Economy;
+        }
+
+        public static DockedStructureAction GetDefaultDockedAction(StructureCategory category)
+        {
+            return SupportsUseAction(category)
+                ? DockedStructureAction.Use
+                : DockedStructureAction.Sell;
         }
     }
 
