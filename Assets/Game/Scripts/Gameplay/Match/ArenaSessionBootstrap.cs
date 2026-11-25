@@ -34,6 +34,7 @@ namespace Game.Gameplay
         [SerializeField] private float _initialTerritoryRadius = 8.5f;
 
         private readonly Dictionary<byte, BuildFeedback> _lastBuildFeedbackBySeat = new();
+        private readonly Dictionary<byte, string> _lastActionNoticeBySeat = new();
         private INetworkSession _session;
         private IUnlockedCardProvider _localUnlockedCardProvider;
         private bool _subscribedStartScenes;
@@ -397,6 +398,86 @@ namespace Game.Gameplay
             return false;
         }
 
+        public bool TryGetLastActionNotice(byte seatId, out string notice)
+        {
+            return _lastActionNoticeBySeat.TryGetValue(seatId, out notice);
+        }
+
+        public bool TryGetDockedInteractionInfo(
+            byte seatId,
+            out DockedTargetKind targetKind,
+            out DockedInteractionSubMode subMode,
+            out int selectedDeckSlot,
+            out DockedStructureAction selectedAction,
+            out ushort targetCardId,
+            out int sellRefundGold,
+            out bool canUseTarget,
+            out float targetWeaponCooldownRemaining,
+            out Vector2 dockedWorldAnchor)
+        {
+            if (Context != null
+                && Context.TryGetAirship(seatId, out AirshipController ship)
+                && ship != null
+                && ship.Docking != null
+                && ship.Docking.IsDocked)
+            {
+                AirshipDockState dock = ship.Docking.State;
+                targetKind = dock.TargetKind;
+                subMode = dock.SubMode;
+                selectedDeckSlot = dock.SelectedDeckSlot;
+                selectedAction = dock.SelectedAction;
+                targetCardId = dock.TargetCardId;
+                sellRefundGold = dock.TargetSellRefundGold;
+                canUseTarget = dock.CanUseTarget;
+                targetWeaponCooldownRemaining = ship.Docking.TargetWeaponCooldownRemaining;
+                dockedWorldAnchor = ship.Docking.CurrentAnchorPosition;
+                return true;
+            }
+
+            targetKind = DockedTargetKind.None;
+            subMode = DockedInteractionSubMode.None;
+            selectedDeckSlot = 0;
+            selectedAction = DockedStructureAction.Use;
+            targetCardId = 0;
+            sellRefundGold = 0;
+            canUseTarget = false;
+            targetWeaponCooldownRemaining = 0f;
+            dockedWorldAnchor = Vector2.zero;
+            return false;
+        }
+
+        public void RequestCycleDockedSelection(byte seatId, sbyte delta)
+        {
+            if (Context != null && Context.TryGetAirship(seatId, out AirshipController ship) && ship != null)
+            {
+                ship.Docking?.RequestCycleDockedSelection(delta);
+            }
+        }
+
+        public void RequestConfirmDockedSelection(byte seatId)
+        {
+            if (Context != null && Context.TryGetAirship(seatId, out AirshipController ship) && ship != null)
+            {
+                ship.Docking?.RequestConfirmDockedSelection();
+            }
+        }
+
+        public void RequestToggleDock(byte seatId)
+        {
+            if (Context != null && Context.TryGetAirship(seatId, out AirshipController ship) && ship != null)
+            {
+                ship.Docking?.RequestToggleDock();
+            }
+        }
+
+        public void RequestExitWeaponControl(byte seatId)
+        {
+            if (Context != null && Context.TryGetAirship(seatId, out AirshipController ship) && ship != null)
+            {
+                ship.Docking?.RequestExitWeaponControl();
+            }
+        }
+
         public void ReturnToMainMenu()
         {
             if (_session != null)
@@ -463,6 +544,7 @@ namespace Game.Gameplay
             Rect playableAirspace = _arenaLayout != null ? _arenaLayout.PlayableAirspace : new Rect(-18f, -2f, 36f, 16f);
 
             _lastBuildFeedbackBySeat.Clear();
+            _lastActionNoticeBySeat.Clear();
 
             Context = new MatchContext
             {
@@ -529,6 +611,7 @@ namespace Game.Gameplay
                 buildInstance.InitializeServer(Context, GameMode, _cardCatalog, _greyboxStructurePrefab);
                 BuildController = buildInstance;
                 BuildController.BuildFeedbackReceived += HandleBuildFeedback;
+                BuildController.StructureSold += HandleStructureSold;
             }
 
             if (_draftControllerPrefab != null)
@@ -736,6 +819,7 @@ namespace Game.Gameplay
             if (BuildController != null)
             {
                 BuildController.BuildFeedbackReceived -= HandleBuildFeedback;
+                BuildController.StructureSold -= HandleStructureSold;
             }
         }
 
@@ -743,6 +827,14 @@ namespace Game.Gameplay
         {
             _lastBuildFeedbackBySeat[feedback.SeatId] = feedback;
             BuildFeedbackReceived?.Invoke(feedback);
+        }
+
+        private void HandleStructureSold(byte seatId, ushort cardId, int refundedGold)
+        {
+            string cardName = _cardCatalog != null && _cardCatalog.TryGetCard(cardId, out StructureCardSO card) && card != null
+                ? card.DisplayName
+                : $"#{cardId}";
+            _lastActionNoticeBySeat[seatId] = $"Satıldı ({cardName} · +{refundedGold}g)";
         }
 
         private void HandleGameModePhaseChanged(MatchPhase prev, MatchPhase next)

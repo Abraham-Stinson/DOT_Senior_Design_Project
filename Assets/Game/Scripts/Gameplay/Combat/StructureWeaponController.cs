@@ -362,7 +362,7 @@ namespace Game.Gameplay
 
         private void UpdateAimTrajectoryVisual()
         {
-            bool showArc = _structure != null && _structure.IsAlive && _structure.IsOccupied && !IsOnCooldown;
+            bool showArc = _structure != null && _structure.IsAlive && _structure.IsWeaponControlled && !IsOnCooldown;
             if (!showArc)
             {
                 if (_aimTrajectoryLine != null)

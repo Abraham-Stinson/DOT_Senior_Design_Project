@@ -40,6 +40,7 @@ namespace Game.Input
             new(0),
             new(1)
         };
+        private readonly bool[] _prevTriggerHeld = new bool[2];
 
         public InputRoutingMode RoutingMode => _routingMode;
         public bool EnableHardwarePolling
@@ -92,6 +93,7 @@ namespace Game.Input
             for (int i = 0; i < _channels.Length; i++)
             {
                 _channels[i].Reset();
+                _prevTriggerHeld[i] = false;
             }
         }
 
@@ -104,17 +106,18 @@ namespace Game.Input
 
             if (_routingMode == InputRoutingMode.SinglePlayer)
             {
-                _channels[0].UpdateFromFrame(ReadSinglePlayerFrame());
+                _channels[0].UpdateFromFrame(ReadSinglePlayerFrame(_prevTriggerHeld));
                 _channels[1].Reset();
+                _prevTriggerHeld[1] = false;
             }
             else
             {
-                _channels[0].UpdateFromFrame(ReadLocalPlayerOneFrame());
-                _channels[1].UpdateFromFrame(ReadLocalPlayerTwoFrame());
+                _channels[0].UpdateFromFrame(ReadLocalPlayerOneFrame(_prevTriggerHeld));
+                _channels[1].UpdateFromFrame(ReadLocalPlayerTwoFrame(_prevTriggerHeld));
             }
         }
 
-        private static PlayerInputSnapshot ReadSinglePlayerFrame()
+        private static PlayerInputSnapshot ReadSinglePlayerFrame(bool[] prevTriggerHeld)
         {
             Keyboard kb = Keyboard.current;
             Mouse mouse = Mouse.current;
@@ -122,11 +125,13 @@ namespace Game.Input
 
             Vector2 move = Vector2.zero;
             bool dockPressed = false;
+            bool firePressed = false;
             bool fireHeld = false;
             bool repairHeld = false;
             bool confirmPlacePressed = false;
             bool cancelCarryPressed = false;
             sbyte buildSlot = -1;
+            sbyte cycleDelta = 0;
 
             if (kb != null)
             {
@@ -134,7 +139,10 @@ namespace Game.Input
                 if (kb.dKey.isPressed || kb.rightArrowKey.isPressed) move.x += 1f;
                 if (kb.sKey.isPressed || kb.downArrowKey.isPressed) move.y -= 1f;
                 if (kb.wKey.isPressed || kb.upArrowKey.isPressed) move.y += 1f;
+                if (kb.aKey.wasPressedThisFrame || kb.leftArrowKey.wasPressedThisFrame) cycleDelta = -1;
+                if (kb.dKey.wasPressedThisFrame || kb.rightArrowKey.wasPressedThisFrame) cycleDelta = 1;
                 dockPressed |= kb.eKey.wasPressedThisFrame || kb.fKey.wasPressedThisFrame;
+                firePressed |= kb.spaceKey.wasPressedThisFrame;
                 fireHeld |= kb.spaceKey.isPressed;
                 repairHeld |= kb.rKey.isPressed;
                 confirmPlacePressed |= kb.spaceKey.wasPressedThisFrame;
@@ -146,6 +154,7 @@ namespace Game.Input
             if (mouse != null)
             {
                 aim = mouse.position.ReadValue();
+                firePressed |= mouse.leftButton.wasPressedThisFrame;
                 fireHeld |= mouse.leftButton.isPressed;
                 confirmPlacePressed |= mouse.leftButton.wasPressedThisFrame;
                 cancelCarryPressed |= mouse.rightButton.wasPressedThisFrame;
@@ -157,11 +166,20 @@ namespace Game.Input
                 if (stick.sqrMagnitude > 0.04f) move += stick;
                 Vector2 rightStick = pad.rightStick.ReadValue();
                 if (rightStick.sqrMagnitude > 0.04f) aim = rightStick;
+                if (pad.dpad.left.wasPressedThisFrame) cycleDelta = -1;
+                if (pad.dpad.right.wasPressedThisFrame) cycleDelta = 1;
                 dockPressed |= pad.buttonWest.wasPressedThisFrame || pad.buttonNorth.wasPressedThisFrame;
-                fireHeld |= pad.rightTrigger.ReadValue() > 0.25f || pad.buttonSouth.isPressed;
+                bool triggerHeld = pad.rightTrigger.ReadValue() > 0.25f;
+                firePressed |= (triggerHeld && !prevTriggerHeld[0]) || pad.buttonSouth.wasPressedThisFrame;
+                prevTriggerHeld[0] = triggerHeld;
+                fireHeld |= triggerHeld || pad.buttonSouth.isPressed;
                 repairHeld |= pad.leftTrigger.ReadValue() > 0.25f;
                 confirmPlacePressed |= pad.buttonSouth.wasPressedThisFrame;
                 cancelCarryPressed |= pad.buttonEast.wasPressedThisFrame;
+            }
+            else
+            {
+                prevTriggerHeld[0] = false;
             }
 
             return new PlayerInputSnapshot
@@ -169,15 +187,17 @@ namespace Game.Input
                 Move = Vector2.ClampMagnitude(move, 1f),
                 Aim = aim,
                 DockPressed = dockPressed,
+                FirePressed = firePressed,
                 FireHeld = fireHeld,
                 SelectedBuildSlot = buildSlot,
                 RepairHeld = repairHeld,
                 ConfirmPlacePressed = confirmPlacePressed,
-                CancelCarryPressed = cancelCarryPressed
+                CancelCarryPressed = cancelCarryPressed,
+                CycleDelta = cycleDelta
             };
         }
 
-        private static PlayerInputSnapshot ReadLocalPlayerOneFrame()
+        private static PlayerInputSnapshot ReadLocalPlayerOneFrame(bool[] prevTriggerHeld)
         {
             Keyboard kb = Keyboard.current;
             Gamepad pad = Gamepad.all.Count >= 2 ? Gamepad.all[0] : null;
@@ -185,11 +205,13 @@ namespace Game.Input
             Vector2 move = Vector2.zero;
             Vector2 aim = Vector2.zero;
             bool dockPressed = false;
+            bool firePressed = false;
             bool fireHeld = false;
             bool repairHeld = false;
             bool confirmPlacePressed = false;
             bool cancelCarryPressed = false;
             sbyte buildSlot = -1;
+            sbyte cycleDelta = 0;
 
             if (kb != null)
             {
@@ -197,7 +219,10 @@ namespace Game.Input
                 if (kb.dKey.isPressed) move.x += 1f;
                 if (kb.sKey.isPressed) move.y -= 1f;
                 if (kb.wKey.isPressed) move.y += 1f;
+                if (kb.aKey.wasPressedThisFrame) cycleDelta = -1;
+                if (kb.dKey.wasPressedThisFrame) cycleDelta = 1;
                 dockPressed |= kb.eKey.wasPressedThisFrame || kb.fKey.wasPressedThisFrame;
+                firePressed |= kb.spaceKey.wasPressedThisFrame;
                 fireHeld |= kb.spaceKey.isPressed;
                 repairHeld |= kb.rKey.isPressed;
                 confirmPlacePressed |= kb.spaceKey.wasPressedThisFrame;
@@ -211,11 +236,20 @@ namespace Game.Input
                 if (stick.sqrMagnitude > 0.04f) move += stick;
                 Vector2 rightStick = pad.rightStick.ReadValue();
                 if (rightStick.sqrMagnitude > 0.04f) aim = rightStick;
+                if (pad.dpad.left.wasPressedThisFrame) cycleDelta = -1;
+                if (pad.dpad.right.wasPressedThisFrame) cycleDelta = 1;
                 dockPressed |= pad.buttonWest.wasPressedThisFrame || pad.buttonNorth.wasPressedThisFrame;
-                fireHeld |= pad.rightTrigger.ReadValue() > 0.25f || pad.buttonSouth.isPressed;
+                bool triggerHeld = pad.rightTrigger.ReadValue() > 0.25f;
+                firePressed |= (triggerHeld && !prevTriggerHeld[0]) || pad.buttonSouth.wasPressedThisFrame;
+                prevTriggerHeld[0] = triggerHeld;
+                fireHeld |= triggerHeld || pad.buttonSouth.isPressed;
                 repairHeld |= pad.leftTrigger.ReadValue() > 0.25f;
                 confirmPlacePressed |= pad.buttonSouth.wasPressedThisFrame;
                 cancelCarryPressed |= pad.buttonEast.wasPressedThisFrame;
+            }
+            else
+            {
+                prevTriggerHeld[0] = false;
             }
 
             return new PlayerInputSnapshot
@@ -223,15 +257,17 @@ namespace Game.Input
                 Move = Vector2.ClampMagnitude(move, 1f),
                 Aim = aim,
                 DockPressed = dockPressed,
+                FirePressed = firePressed,
                 FireHeld = fireHeld,
                 SelectedBuildSlot = buildSlot,
                 RepairHeld = repairHeld,
                 ConfirmPlacePressed = confirmPlacePressed,
-                CancelCarryPressed = cancelCarryPressed
+                CancelCarryPressed = cancelCarryPressed,
+                CycleDelta = cycleDelta
             };
         }
 
-        private static PlayerInputSnapshot ReadLocalPlayerTwoFrame()
+        private static PlayerInputSnapshot ReadLocalPlayerTwoFrame(bool[] prevTriggerHeld)
         {
             Keyboard kb = Keyboard.current;
             Gamepad pad = Gamepad.all.Count >= 2
@@ -241,11 +277,13 @@ namespace Game.Input
             Vector2 move = Vector2.zero;
             Vector2 aim = Vector2.zero;
             bool dockPressed = false;
+            bool firePressed = false;
             bool fireHeld = false;
             bool repairHeld = false;
             bool confirmPlacePressed = false;
             bool cancelCarryPressed = false;
             sbyte buildSlot = -1;
+            sbyte cycleDelta = 0;
 
             if (kb != null)
             {
@@ -253,7 +291,10 @@ namespace Game.Input
                 if (kb.rightArrowKey.isPressed) move.x += 1f;
                 if (kb.downArrowKey.isPressed) move.y -= 1f;
                 if (kb.upArrowKey.isPressed) move.y += 1f;
+                if (kb.leftArrowKey.wasPressedThisFrame) cycleDelta = -1;
+                if (kb.rightArrowKey.wasPressedThisFrame) cycleDelta = 1;
                 dockPressed |= kb.rightShiftKey.wasPressedThisFrame || kb.enterKey.wasPressedThisFrame || kb.numpadEnterKey.wasPressedThisFrame;
+                firePressed |= kb.rightCtrlKey.wasPressedThisFrame || kb.slashKey.wasPressedThisFrame || kb.numpad0Key.wasPressedThisFrame;
                 fireHeld |= kb.rightCtrlKey.isPressed || kb.slashKey.isPressed || kb.numpad0Key.isPressed;
                 repairHeld |= kb.backspaceKey.isPressed;
                 confirmPlacePressed |= kb.rightCtrlKey.wasPressedThisFrame || kb.slashKey.wasPressedThisFrame || kb.numpad0Key.wasPressedThisFrame;
@@ -267,11 +308,20 @@ namespace Game.Input
                 if (stick.sqrMagnitude > 0.04f) move += stick;
                 Vector2 rightStick = pad.rightStick.ReadValue();
                 if (rightStick.sqrMagnitude > 0.04f) aim = rightStick;
+                if (pad.dpad.left.wasPressedThisFrame) cycleDelta = -1;
+                if (pad.dpad.right.wasPressedThisFrame) cycleDelta = 1;
                 dockPressed |= pad.buttonWest.wasPressedThisFrame || pad.buttonNorth.wasPressedThisFrame;
-                fireHeld |= pad.rightTrigger.ReadValue() > 0.25f || pad.buttonSouth.isPressed;
+                bool triggerHeld = pad.rightTrigger.ReadValue() > 0.25f;
+                firePressed |= (triggerHeld && !prevTriggerHeld[1]) || pad.buttonSouth.wasPressedThisFrame;
+                prevTriggerHeld[1] = triggerHeld;
+                fireHeld |= triggerHeld || pad.buttonSouth.isPressed;
                 repairHeld |= pad.leftTrigger.ReadValue() > 0.25f;
                 confirmPlacePressed |= pad.buttonSouth.wasPressedThisFrame;
                 cancelCarryPressed |= pad.buttonEast.wasPressedThisFrame;
+            }
+            else
+            {
+                prevTriggerHeld[1] = false;
             }
 
             return new PlayerInputSnapshot
@@ -279,11 +329,13 @@ namespace Game.Input
                 Move = Vector2.ClampMagnitude(move, 1f),
                 Aim = aim,
                 DockPressed = dockPressed,
+                FirePressed = firePressed,
                 FireHeld = fireHeld,
                 SelectedBuildSlot = buildSlot,
                 RepairHeld = repairHeld,
                 ConfirmPlacePressed = confirmPlacePressed,
-                CancelCarryPressed = cancelCarryPressed
+                CancelCarryPressed = cancelCarryPressed,
+                CycleDelta = cycleDelta
             };
         }
 

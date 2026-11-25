@@ -8,9 +8,11 @@ namespace Game.Input
     {
         private PlayerInputSnapshot _latest;
         private bool _latchedDockPressed;
+        private bool _latchedFirePressed;
         private sbyte _latchedBuildSlot = -1;
         private bool _latchedConfirmPlacePressed;
         private bool _latchedCancelCarryPressed;
+        private sbyte _latchedCycleDelta;
 
         public PlayerInputChannel(byte slotId)
         {
@@ -25,11 +27,13 @@ namespace Game.Input
             Move = _latest.Move,
             Aim = _latest.Aim,
             DockPressed = _latchedDockPressed,
+            FirePressed = _latchedFirePressed,
             FireHeld = _latest.FireHeld,
             SelectedBuildSlot = _latchedBuildSlot,
             RepairHeld = _latest.RepairHeld,
             ConfirmPlacePressed = _latchedConfirmPlacePressed,
-            CancelCarryPressed = _latchedCancelCarryPressed
+            CancelCarryPressed = _latchedCancelCarryPressed,
+            CycleDelta = _latchedCycleDelta
         };
 
         public void UpdateFromFrame(in PlayerInputSnapshot frame)
@@ -38,6 +42,11 @@ namespace Game.Input
             if (frame.DockPressed)
             {
                 _latchedDockPressed = true;
+            }
+
+            if (frame.FirePressed)
+            {
+                _latchedFirePressed = true;
             }
 
             if (frame.SelectedBuildSlot >= 0)
@@ -54,15 +63,22 @@ namespace Game.Input
             {
                 _latchedCancelCarryPressed = true;
             }
+
+            if (frame.CycleDelta != 0)
+            {
+                _latchedCycleDelta = frame.CycleDelta;
+            }
         }
 
         public PlayerInputSnapshot ConsumeTickSnapshot()
         {
             PlayerInputSnapshot snapshot = Current;
             _latchedDockPressed = false;
+            _latchedFirePressed = false;
             _latchedBuildSlot = -1;
             _latchedConfirmPlacePressed = false;
             _latchedCancelCarryPressed = false;
+            _latchedCycleDelta = 0;
             return snapshot;
         }
 
@@ -70,9 +86,11 @@ namespace Game.Input
         {
             _latest = PlayerInputSnapshot.Empty;
             _latchedDockPressed = false;
+            _latchedFirePressed = false;
             _latchedBuildSlot = -1;
             _latchedConfirmPlacePressed = false;
             _latchedCancelCarryPressed = false;
+            _latchedCycleDelta = 0;
         }
     }
 }

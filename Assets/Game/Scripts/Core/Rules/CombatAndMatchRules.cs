@@ -85,6 +85,42 @@ namespace Game.Core
         }
     }
 
+    /// <summary>
+    /// Ensures confirming 'Use' on a weapon does not immediately fire on the same press/hold;
+    /// requires a full button release followed by a fresh rising-edge press.
+    /// </summary>
+    public sealed class WeaponFireInputGate
+    {
+        private bool _waitingForRelease;
+
+        public bool IsWaitingForRelease => _waitingForRelease;
+
+        public void LockUntilRelease()
+        {
+            _waitingForRelease = true;
+        }
+
+        public void Reset()
+        {
+            _waitingForRelease = false;
+        }
+
+        public bool EvaluateFireInput(bool firePressed, bool fireHeld, bool confirmPressed)
+        {
+            if (_waitingForRelease)
+            {
+                if (!fireHeld && !firePressed && !confirmPressed)
+                {
+                    _waitingForRelease = false;
+                }
+
+                return false;
+            }
+
+            return firePressed;
+        }
+    }
+
     public readonly struct CombatTargetCandidate
     {
         public readonly TeamId Team;

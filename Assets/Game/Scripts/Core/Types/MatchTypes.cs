@@ -62,7 +62,8 @@ namespace Game.Core
         DepositOccupied = 13,
         AlreadyCarrying = 14,
         NotCarrying = 15,
-        TooFarFromGround = 16
+        TooFarFromGround = 16,
+        MustDockAtBase = 17
     }
 
     public enum LoadoutValidationError : byte

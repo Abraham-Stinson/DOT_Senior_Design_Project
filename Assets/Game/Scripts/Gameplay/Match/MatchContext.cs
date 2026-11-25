@@ -41,6 +41,7 @@ namespace Game.Gameplay
         public ITerrainService Terrain { get; set; }
         public ITerritoryService Territory { get; set; }
         public IEconomyService Economy { get; set; }
+        public StructureBuildController BuildController { get; set; }
         public BallisticProjectile ProjectilePrefab { get; set; }
         public Rect PlayableAirspace { get; set; } = new(-18f, -2f, 36f, 16f);
         public Func<bool> CanPilotAirships { get; set; }

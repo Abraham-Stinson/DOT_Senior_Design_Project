@@ -25,6 +25,7 @@ namespace Game.Gameplay
         private readonly SyncVar<float> _maxHealth = new();
         private readonly SyncVar<bool> _isConstructed = new();
         private readonly SyncVar<bool> _isOccupied = new();
+        private readonly SyncVar<bool> _isWeaponControlled = new();
         private readonly SyncVar<float> _territoryRadius = new();
         private readonly SyncVar<float> _incomeBonus = new();
         private readonly SyncVar<Vector2> _footprintSize = new(new Vector2(1.8f, 1.4f));
@@ -58,6 +59,7 @@ namespace Game.Gameplay
         public bool IsAlive => _isConstructed.Value && _currentHealth.Value > 0f;
         public bool IsConstructed => _isConstructed.Value;
         public bool IsOccupied => _isOccupied.Value;
+        public bool IsWeaponControlled => _isWeaponControlled.Value;
         public float TerritoryRadius => _territoryRadius.Value;
         public float IncomeBonus => _incomeBonus.Value;
         public StructureWeaponController WeaponController => _weaponController;
@@ -96,6 +98,7 @@ namespace Game.Gameplay
             _currentHealth.OnChange += HandleHealthSyncChanged;
             _maxHealth.OnChange += HandleHealthSyncChanged;
             _isOccupied.OnChange += HandleOccupiedChanged;
+            _isWeaponControlled.OnChange += HandleWeaponControlChanged;
             _territoryRadius.OnChange += HandleFloatVisualChanged;
             _footprintSize.OnChange += HandleFootprintChanged;
         }
@@ -107,6 +110,7 @@ namespace Game.Gameplay
             _currentHealth.OnChange -= HandleHealthSyncChanged;
             _maxHealth.OnChange -= HandleHealthSyncChanged;
             _isOccupied.OnChange -= HandleOccupiedChanged;
+            _isWeaponControlled.OnChange -= HandleWeaponControlChanged;
             _territoryRadius.OnChange -= HandleFloatVisualChanged;
             _footprintSize.OnChange -= HandleFootprintChanged;
             CleanupServerRegistrations();
@@ -260,20 +264,42 @@ namespace Game.Gameplay
             if (_currentHealth.Value <= 0f)
             {
                 _isConstructed.Value = false;
+                _isWeaponControlled.Value = false;
                 DestroyedServer?.Invoke(this);
                 CleanupServerRegistrations();
                 Despawn();
             }
         }
 
-        public bool CanDock(byte seatId, TeamId team)
+        public void SetWeaponControlActiveServer(bool active)
         {
-            if (!IsServerInitialized || !IsAlive || team == TeamId.Neutral || team != _teamId.Value)
+            if (!IsServerInitialized)
+            {
+                return;
+            }
+
+            _isWeaponControlled.Value = active && HasWeapon && IsAlive && !_weaponController.IsOnCooldown;
+            _weaponController?.RefreshVisuals();
+        }
+
+        public bool SellAndDespawnServer()
+        {
+            if (!IsServerInitialized || !IsAlive || _category.Value == StructureCategory.Core)
             {
                 return false;
             }
 
-            if (HasWeapon && _weaponController.IsOnCooldown)
+            _isConstructed.Value = false;
+            _isWeaponControlled.Value = false;
+            DestroyedServer?.Invoke(this);
+            CleanupServerRegistrations();
+            Despawn();
+            return true;
+        }
+
+        public bool CanDock(byte seatId, TeamId team)
+        {
+            if (!IsServerInitialized || !IsAlive || team == TeamId.Neutral || team != _teamId.Value)
             {
                 return false;
             }
@@ -290,6 +316,7 @@ namespace Game.Gameplay
 
             _dockedSeatId = seatId;
             _isOccupied.Value = true;
+            _isWeaponControlled.Value = false;
         }
 
         public void OnAirshipUndockedServer(byte seatId)
@@ -303,6 +330,8 @@ namespace Game.Gameplay
             {
                 _dockedSeatId = byte.MaxValue;
                 _isOccupied.Value = false;
+                _isWeaponControlled.Value = false;
+                _weaponController?.RefreshVisuals();
             }
         }
 
@@ -356,6 +385,12 @@ namespace Game.Gameplay
         {
             if (asServer && ShouldSuppressServerDuplicate()) return;
             UpdateVisuals();
+            _weaponController?.RefreshVisuals();
+        }
+
+        private void HandleWeaponControlChanged(bool prev, bool next, bool asServer)
+        {
+            if (asServer && ShouldSuppressServerDuplicate()) return;
             _weaponController?.RefreshVisuals();
         }
 

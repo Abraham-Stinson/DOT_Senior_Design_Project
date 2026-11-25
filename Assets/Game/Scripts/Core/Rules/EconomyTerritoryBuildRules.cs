@@ -351,6 +351,7 @@ namespace Game.Core
         public readonly bool HasValidGoldDeposit;
         public readonly bool DepositOccupied;
         public readonly bool WithinGroundProximity;
+        public readonly bool MustDockAtBaseSatisfied;
 
         public BuildValidationInput(
             MatchPhase phase,
@@ -381,7 +382,8 @@ namespace Game.Core
                 requiresGoldDeposit: false,
                 hasValidGoldDeposit: true,
                 depositOccupied: false,
-                withinGroundProximity: true)
+                withinGroundProximity: true,
+                mustDockAtBaseSatisfied: true)
         {
         }
 
@@ -401,7 +403,8 @@ namespace Game.Core
             bool requiresGoldDeposit,
             bool hasValidGoldDeposit,
             bool depositOccupied,
-            bool withinGroundProximity = true)
+            bool withinGroundProximity = true,
+            bool mustDockAtBaseSatisfied = true)
         {
             Phase = phase;
             SeatExists = seatExists;
@@ -419,6 +422,7 @@ namespace Game.Core
             HasValidGoldDeposit = hasValidGoldDeposit;
             DepositOccupied = depositOccupied;
             WithinGroundProximity = withinGroundProximity;
+            MustDockAtBaseSatisfied = mustDockAtBaseSatisfied;
         }
     }
 
@@ -442,6 +446,11 @@ namespace Game.Core
             if (!input.CallerOwnsSeat)
             {
                 return BuildRejectReason.UnauthorizedSender;
+            }
+
+            if (!input.MustDockAtBaseSatisfied)
+            {
+                return BuildRejectReason.MustDockAtBase;
             }
 
             if (!input.CardExists)

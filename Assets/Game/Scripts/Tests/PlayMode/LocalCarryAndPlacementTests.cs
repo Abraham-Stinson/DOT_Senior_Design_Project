@@ -173,8 +173,13 @@ namespace Game.Tests.PlayMode
             _networkManager.ServerManager.Spawn(ship0.NetworkObject, hostConn);
             ship0.InitializeServer(0, TeamId.TeamA, context, bounds);
 
+            StructureBase hqA = Object.Instantiate(structurePrefabGo.GetComponent<StructureBase>(), new Vector3(-13.5f, -0.9f, 0f), Quaternion.identity);
+            _networkManager.ServerManager.Spawn(hqA.NetworkObject);
+            hqA.InitializeServer(99, 0, TeamId.TeamA, StructureCategory.Core, 500f, new Vector2(2.4f, 2.2f), 0f, 0f, context);
+            context.RegisterHq(TeamId.TeamA, hqA);
+
             yield return Until(
-                () => builder.IsClientInitialized && ship0.IsClientInitialized && deposit.IsClientInitialized && territory.IsClientInitialized,
+                () => builder.IsClientInitialized && ship0.IsClientInitialized && deposit.IsClientInitialized && territory.IsClientInitialized && hqA.IsClientInitialized,
                 5f,
                 "Spawned M1.4+ network objects did not initialize on local client in time.");
 
@@ -183,10 +188,22 @@ namespace Game.Tests.PlayMode
             builder.BuildFeedbackReceived += fb => lastFeedback = fb;
             builder.CarryCancelled += (_, _, refunded) => cancelledRefund = refunded;
 
-            // 1. Begin carrying Gold Mine (Slot 2, cost 80, requiresGoldDeposit = true).
+            // 0. Buying/carrying without docking at Base must reject with MustDockAtBase.
+            builder.RequestBeginCarryFromSlot(0, 2);
+            yield return Until(() => lastFeedback.HasValue, 3f, "No rejection feedback when trying to carry while not docked at Base.");
+            Assert.That(lastFeedback.Value.Accepted, Is.False);
+            Assert.That(lastFeedback.Value.RejectReason, Is.EqualTo(BuildRejectReason.MustDockAtBase));
+            Assert.That(ship0.IsCarrying, Is.False);
+
+            // Dock at Base HQ to begin carrying Gold Mine (Slot 2, cost 80, requiresGoldDeposit = true).
+            ship0.transform.position = hqA.DockAnchorWorld;
+            ship0.Docking.RequestToggleDock();
+            yield return Until(() => ship0.Docking.IsDockedAtBase, 3f, "Airship failed to dock onto TeamA Base HQ.");
+
+            // 1. Begin carrying Gold Mine (Slot 2) from docked Base -> auto-undocks and enters carry.
             lastFeedback = null;
             builder.RequestBeginCarryFromSlot(0, 2);
-            yield return Until(() => ship0.IsCarrying && lastFeedback.HasValue, 3f, "Airship did not enter carry state for Gold Mine.");
+            yield return Until(() => ship0.IsCarrying && !ship0.Docking.IsDocked && lastFeedback.HasValue, 3f, "Airship did not enter carry state for Gold Mine.");
             Assert.That(lastFeedback.Value.Accepted, Is.True);
             Assert.That(ship0.CarryState.CardId, Is.EqualTo(20));
             Assert.That(ship0.CarryState.ReservedGold, Is.EqualTo(80));
@@ -206,7 +223,11 @@ namespace Game.Tests.PlayMode
             yield return Until(() => !ship0.IsCarrying && cancelledRefund == 80, 3f, "Cancelling carry did not clear state and refund gold.");
             Assert.That(seat0.Gold, Is.EqualTo(300));
 
-            // 4. Re-carry Gold Mine and deploy over GoldDeposit (-9.5, -2.0) -> snaps onto deposit, marks occupied, grants +8/sec.
+            // 4. Re-dock at Base, pick up Gold Mine and deploy over GoldDeposit (-9.5, -2.0) -> snaps onto deposit, marks occupied, grants +8/sec.
+            ship0.transform.position = hqA.DockAnchorWorld;
+            ship0.Docking.RequestToggleDock();
+            yield return Until(() => ship0.Docking.IsDockedAtBase, 3f, "Airship failed to re-dock onto Base HQ.");
+
             lastFeedback = null;
             builder.RequestBeginCarryFromSlot(0, 2);
             yield return Until(() => ship0.IsCarrying && lastFeedback.HasValue, 3f, "Airship did not re-pick up Gold Mine.");
@@ -218,14 +239,18 @@ namespace Game.Tests.PlayMode
             Assert.That(lastFeedback.Value.Accepted, Is.True, $"Unexpected reject: {lastFeedback.Value.RejectReason}");
             Assert.That(deposit.IsOccupied, Is.True);
             Assert.That(seat0.IncomePerSecond, Is.EqualTo(8f).Within(0.01f));
-            Assert.That(context.Structures.Count, Is.EqualTo(1));
-            var mineStructure = context.Structures[0] as StructureBase;
+            Assert.That(context.Structures.Count, Is.EqualTo(2));
+            var mineStructure = context.Structures[1] as StructureBase;
             Assert.That(mineStructure, Is.Not.Null);
             Assert.That(mineStructure.transform.position.x, Is.EqualTo(-9.5f).Within(0.05f));
 
             yield return new WaitForSeconds(0.15f);
 
-            // 5. Carrying another Gold Mine and deploying onto the occupied deposit must fail with DepositOccupied; cancelling refunds.
+            // 5. Carrying another Gold Mine from Base and deploying onto the occupied deposit must fail with DepositOccupied; cancelling refunds.
+            ship0.transform.position = hqA.DockAnchorWorld;
+            ship0.Docking.RequestToggleDock();
+            yield return Until(() => ship0.Docking.IsDockedAtBase, 3f, "Airship failed to dock onto Base HQ for second Gold Mine.");
+
             int goldBeforeSecondMine = seat0.Gold;
             lastFeedback = null;
             builder.RequestBeginCarryFromSlot(0, 2);
@@ -245,9 +270,13 @@ namespace Game.Tests.PlayMode
             yield return Until(() => !ship0.IsCarrying && cancelledRefund == 80, 3f, "Cancel after occupied rejection did not refund gold.");
             Assert.That(seat0.Gold, Is.GreaterThanOrEqualTo(goldBeforeCancel + 80));
 
-            // 6. Carry & deploy Territory Balloon (Slot 0) at (-6, 0) -> expands TeamA territory past x = -1.5.
+            // 6. Dock at Base, carry & deploy Territory Balloon (Slot 0) at (-6, 0) -> expands TeamA territory past x = -1.5.
             Vector2 expandedPoint = new(-1.5f, -1.3f);
             Assert.That(territory.IsInsideTeamTerritory(TeamId.TeamA, expandedPoint), Is.False);
+
+            ship0.transform.position = hqA.DockAnchorWorld;
+            ship0.Docking.RequestToggleDock();
+            yield return Until(() => ship0.Docking.IsDockedAtBase, 3f, "Airship failed to dock onto Base HQ for Balloon.");
 
             lastFeedback = null;
             builder.RequestBeginCarryFromSlot(0, 0);
@@ -373,13 +402,22 @@ namespace Game.Tests.PlayMode
                 5f,
                 "Spawned network objects did not initialize on local client in time.");
 
-            // 1. Dock onto the allied pad first.
+            // 1. Dock onto the allied Base pad first -> enters BaseDeckSelect at slot 0.
             _inputRouter.InjectSyntheticInput(0, new PlayerInputSnapshot { DockPressed = true, SelectedBuildSlot = -1 });
-            yield return Until(() => ship0.Docking.IsDocked, 3f, "Airship did not dock onto pad before carry.");
+            yield return Until(
+                () => ship0.Docking.IsDockedAtBase && ship0.Docking.SubMode == DockedInteractionSubMode.BaseDeckSelect,
+                3f,
+                "Airship did not dock onto Base pad before deck cycling.");
 
-            // 2. Picking up Gold Mine (Slot 2) from a docked state must auto-undock and enter carry state.
-            _inputRouter.InjectSyntheticInput(0, new PlayerInputSnapshot { SelectedBuildSlot = 2 });
-            yield return Until(() => ship0.IsCarrying && !ship0.Docking.IsDocked, 3f, "Picking up Gold Mine from dock did not auto-undock and enter carry state.");
+            // 2. Cycle Right twice (Slot 0 -> 1 -> 2 = Gold Mine) via Left/Right input and Confirm -> auto-undocks and enters carry state.
+            _inputRouter.InjectSyntheticInput(0, new PlayerInputSnapshot { CycleDelta = 1, SelectedBuildSlot = -1 });
+            yield return Until(() => ship0.Docking.State.SelectedDeckSlot == 1, 2f, "Cycle Right did not advance from slot 0 to slot 1.");
+
+            _inputRouter.InjectSyntheticInput(0, new PlayerInputSnapshot { CycleDelta = 1, SelectedBuildSlot = -1 });
+            yield return Until(() => ship0.Docking.State.SelectedDeckSlot == 2 && ship0.Docking.State.TargetCardId == 20, 2f, "Cycle Right did not select Gold Mine at slot 2.");
+
+            _inputRouter.InjectSyntheticInput(0, new PlayerInputSnapshot { ConfirmPlacePressed = true, SelectedBuildSlot = -1 });
+            yield return Until(() => ship0.IsCarrying && !ship0.Docking.IsDocked, 3f, "Confirming Gold Mine at docked Base did not auto-undock and enter carry state.");
 
             // 3. Only the in-territory/in-range deposit highlights green (Valid); out-of-territory stays OutsideTerritory.
             yield return Until(

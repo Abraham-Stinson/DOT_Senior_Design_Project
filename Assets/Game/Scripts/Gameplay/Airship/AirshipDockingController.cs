@@ -21,11 +21,20 @@ namespace Game.Gameplay
         private Vector2 _serverDirectAimDir;
         private Vector2 _lastSentDockedMoveAim;
         private Vector2 _lastSentDirectAimDir;
+        private uint _enteredWeaponControlServerTick;
 
         public AirshipDockState State => _dockState.Value;
         public bool IsDocked => _dockState.Value.IsDocked;
+        public bool IsDockedAtBase => IsDocked && _dockState.Value.TargetKind == DockedTargetKind.Base;
+        public bool IsControllingWeapon => IsDocked && _dockState.Value.SubMode == DockedInteractionSubMode.WeaponManualControl;
+        public DockedInteractionSubMode SubMode => _dockState.Value.SubMode;
         public Vector2 CurrentAnchorPosition => _dockState.Value.AnchorPosition;
         public float DockRange => _dockRange;
+
+        public float TargetWeaponCooldownRemaining =>
+            IsDocked && _currentTarget?.UnityObject is StructureBase structure && structure.WeaponController != null
+                ? structure.WeaponController.CooldownRemaining
+                : 0f;
 
         public event Action<AirshipDockState> DockStateChanged;
 
@@ -83,9 +92,39 @@ namespace Game.Gameplay
             RequestToggleDockServerRpc();
         }
 
-        public void RequestDockedFire(Vector2 aimDirection)
+        public void RequestCycleDockedSelection(sbyte delta)
+        {
+            if (!IsOwner || !IsClientInitialized || !IsDocked || delta == 0)
+            {
+                return;
+            }
+
+            RequestCycleDockedSelectionServerRpc(delta);
+        }
+
+        public void RequestConfirmDockedSelection()
         {
             if (!IsOwner || !IsClientInitialized || !IsDocked)
+            {
+                return;
+            }
+
+            RequestConfirmDockedSelectionServerRpc();
+        }
+
+        public void RequestExitWeaponControl()
+        {
+            if (!IsOwner || !IsClientInitialized || !IsControllingWeapon)
+            {
+                return;
+            }
+
+            RequestExitWeaponControlServerRpc();
+        }
+
+        public void RequestDockedFire(Vector2 aimDirection)
+        {
+            if (!IsOwner || !IsClientInitialized || !IsControllingWeapon)
             {
                 return;
             }
@@ -95,7 +134,7 @@ namespace Game.Gameplay
 
         public void SubmitDockedAim(Vector2 moveAimInput, bool hasDirectAimDirection, Vector2 directAimDirection)
         {
-            if (!IsOwner || !IsClientInitialized || !IsDocked)
+            if (!IsOwner || !IsClientInitialized || !IsControllingWeapon)
             {
                 return;
             }
@@ -125,7 +164,7 @@ namespace Game.Gameplay
         [ServerRpc]
         private void SubmitDockedAimServerRpc(Vector2 moveAimInput, bool hasDirectAimDirection, Vector2 directAimDirection)
         {
-            if (!IsServerInitialized || !IsDocked)
+            if (!IsServerInitialized || !IsControllingWeapon)
             {
                 return;
             }
@@ -136,9 +175,136 @@ namespace Game.Gameplay
         }
 
         [ServerRpc]
+        private void RequestCycleDockedSelectionServerRpc(sbyte delta)
+        {
+            if (!IsServerInitialized || !IsDocked || delta == 0)
+            {
+                return;
+            }
+
+            if (_context != null && _context.CanPilotAirships != null && !_context.CanPilotAirships())
+            {
+                return;
+            }
+
+            AirshipDockState next = _dockState.Value;
+            if (next.SubMode == DockedInteractionSubMode.BaseDeckSelect)
+            {
+                int slotCount = GetSeatLoadoutCountServer(_seatId);
+                next.SelectedDeckSlot = DockedMenuNavigator.CycleDeckSlot(next.SelectedDeckSlot, delta, slotCount);
+                next.TargetCardId = ResolveSeatLoadoutCardServer(_seatId, next.SelectedDeckSlot);
+                _dockState.Value = next;
+            }
+            else if (next.SubMode == DockedInteractionSubMode.StructureActionSelect)
+            {
+                next.SelectedAction = DockedMenuNavigator.CycleStructureAction(next.SelectedAction, delta);
+                _dockState.Value = next;
+            }
+        }
+
+        [ServerRpc]
+        private void RequestConfirmDockedSelectionServerRpc()
+        {
+            if (!IsServerInitialized || !IsDocked || _context == null)
+            {
+                return;
+            }
+
+            if (_context.CanPilotAirships != null && !_context.CanPilotAirships())
+            {
+                return;
+            }
+
+            if (TryGetComponent(out AirshipController airship) && (!airship.IsAlive || airship.IsCarrying))
+            {
+                return;
+            }
+
+            AirshipDockState current = _dockState.Value;
+            if (current.SubMode == DockedInteractionSubMode.BaseDeckSelect)
+            {
+                _context.BuildController?.BeginCarryFromDockedBaseServer(_seatId, current.SelectedDeckSlot, Owner);
+                return;
+            }
+
+            if (current.SubMode != DockedInteractionSubMode.StructureActionSelect)
+            {
+                return;
+            }
+
+            if (_currentTarget?.Dockable is not StructureBase targetStructure || !targetStructure.IsAlive)
+            {
+                ForceUndockServer();
+                return;
+            }
+
+            if (current.SelectedAction == DockedStructureAction.Use)
+            {
+                if (targetStructure.IsWeaponReadyForControl)
+                {
+                    targetStructure.SetWeaponControlActiveServer(true);
+                    _enteredWeaponControlServerTick = TimeManager != null ? TimeManager.Tick : 0u;
+                    current.SubMode = DockedInteractionSubMode.WeaponManualControl;
+                    current.CanUseTarget = true;
+                    _dockState.Value = current;
+                }
+                return;
+            }
+
+            if (current.SelectedAction == DockedStructureAction.Sell)
+            {
+                if (!StructureSellRules.CanSellStructure(targetStructure.Category, targetStructure.IsAlive, targetStructure.Team, _teamId))
+                {
+                    return;
+                }
+
+                // Undock cleanly before despawning so OnAirshipUndockedServer and SyncVar updates stay valid.
+                ForceUndockServer();
+                if (_context.BuildController != null)
+                {
+                    _context.BuildController.TrySellStructureServer(_seatId, targetStructure, Owner, out _);
+                }
+                else
+                {
+                    targetStructure.SellAndDespawnServer();
+                }
+            }
+        }
+
+        [ServerRpc]
+        private void RequestExitWeaponControlServerRpc()
+        {
+            if (!IsServerInitialized || !IsControllingWeapon)
+            {
+                return;
+            }
+
+            bool canUse = false;
+            if (_currentTarget?.Dockable is StructureBase structure)
+            {
+                structure.SetWeaponControlActiveServer(false);
+                canUse = structure.IsWeaponReadyForControl;
+            }
+
+            _serverDockedMoveAim = Vector2.zero;
+            _serverHasDirectAim = false;
+            _serverDirectAimDir = Vector2.zero;
+
+            AirshipDockState next = _dockState.Value;
+            next.SubMode = DockedInteractionSubMode.StructureActionSelect;
+            next.CanUseTarget = canUse;
+            _dockState.Value = next;
+        }
+
+        [ServerRpc]
         private void RequestDockedFireServerRpc(Vector2 aimDirection)
         {
-            if (!IsServerInitialized || !IsDocked || _currentTarget == null || _currentTarget.UnityObject == null)
+            if (!IsServerInitialized || !IsControllingWeapon || _currentTarget == null || _currentTarget.UnityObject == null)
+            {
+                return;
+            }
+
+            if (TimeManager != null && _enteredWeaponControlServerTick != 0u && TimeManager.Tick == _enteredWeaponControlServerTick)
             {
                 return;
             }
@@ -157,6 +323,7 @@ namespace Game.Gameplay
             {
                 if (weaponStructure.TryHandleManualFireServer(_seatId, new InteractPayload(1, aimDirection)))
                 {
+                    weaponStructure.SetWeaponControlActiveServer(false);
                     ForceUndockServer();
                 }
                 return;
@@ -211,10 +378,39 @@ namespace Game.Gameplay
             best.Dockable.OnAirshipDockedServer(_seatId);
             _currentTarget = best;
             Vector2 anchor = best.Dockable.DockAnchorWorld;
-            _dockState.Value = AirshipDockState.CreateDocked(
-                AirshipDockMode.DockedToStructure,
-                best.NetworkObjectId,
-                anchor);
+
+            if (best.Dockable is StructureBase structure && structure.Category != StructureCategory.Core)
+            {
+                int sellRefund = _context.BuildController != null
+                    ? _context.BuildController.ComputeSellRefundForCard(structure.CardId)
+                    : 0;
+                _dockState.Value = AirshipDockState.CreateDockedInteraction(
+                    AirshipDockMode.DockedToStructure,
+                    best.NetworkObjectId,
+                    anchor,
+                    DockedTargetKind.NonBaseStructure,
+                    DockedInteractionSubMode.StructureActionSelect,
+                    selectedDeckSlot: 0,
+                    selectedAction: DockedStructureAction.Use,
+                    targetCardId: structure.CardId,
+                    sellRefundGold: sellRefund,
+                    canUseTarget: structure.IsWeaponReadyForControl);
+            }
+            else
+            {
+                ushort slot0Card = ResolveSeatLoadoutCardServer(_seatId, 0);
+                _dockState.Value = AirshipDockState.CreateDockedInteraction(
+                    AirshipDockMode.DockedToStructure,
+                    best.NetworkObjectId,
+                    anchor,
+                    DockedTargetKind.Base,
+                    DockedInteractionSubMode.BaseDeckSelect,
+                    selectedDeckSlot: 0,
+                    selectedAction: DockedStructureAction.Use,
+                    targetCardId: slot0Card,
+                    sellRefundGold: 0,
+                    canUseTarget: false);
+            }
 
             NotifyDockChangedObserversRpc(true, anchor);
         }
@@ -244,17 +440,30 @@ namespace Game.Gameplay
                 return;
             }
 
-            if (_currentTarget?.Dockable is StructureBase structure && structure.HasWeapon)
+            if (_currentTarget?.Dockable is StructureBase structure)
             {
-                if (_serverHasDirectAim && _serverDirectAimDir.sqrMagnitude > 0.001f)
+                if (SubMode == DockedInteractionSubMode.StructureActionSelect)
                 {
-                    structure.HandleManualAimDirectionServer(_seatId, _serverDirectAimDir);
-                    _serverHasDirectAim = false;
+                    bool canUseNow = structure.IsWeaponReadyForControl;
+                    if (canUseNow != _dockState.Value.CanUseTarget)
+                    {
+                        AirshipDockState updated = _dockState.Value;
+                        updated.CanUseTarget = canUseNow;
+                        _dockState.Value = updated;
+                    }
                 }
-                else if (_serverDockedMoveAim.sqrMagnitude > 0.001f)
+                else if (IsControllingWeapon && structure.HasWeapon)
                 {
-                    float dt = TimeManager != null ? (float)TimeManager.TickDelta : (1f / 30f);
-                    structure.HandleManualAimStepServer(_seatId, _serverDockedMoveAim, dt);
+                    if (_serverHasDirectAim && _serverDirectAimDir.sqrMagnitude > 0.001f)
+                    {
+                        structure.HandleManualAimDirectionServer(_seatId, _serverDirectAimDir);
+                        _serverHasDirectAim = false;
+                    }
+                    else if (_serverDockedMoveAim.sqrMagnitude > 0.001f)
+                    {
+                        float dt = TimeManager != null ? (float)TimeManager.TickDelta : (1f / 30f);
+                        structure.HandleManualAimStepServer(_seatId, _serverDockedMoveAim, dt);
+                    }
                 }
             }
         }
@@ -263,6 +472,11 @@ namespace Game.Gameplay
         {
             if (_currentTarget != null && _currentTarget.UnityObject != null && _currentTarget.Dockable != null)
             {
+                if (_currentTarget.Dockable is StructureBase structure)
+                {
+                    structure.SetWeaponControlActiveServer(false);
+                }
+
                 _currentTarget.Dockable.OnAirshipUndockedServer(_seatId);
             }
 
@@ -270,6 +484,30 @@ namespace Game.Gameplay
             _serverDockedMoveAim = Vector2.zero;
             _serverHasDirectAim = false;
             _serverDirectAimDir = Vector2.zero;
+        }
+
+        private int GetSeatLoadoutCountServer(byte seatId)
+        {
+            if (_context != null && _context.TryGetSeat(seatId, out PlayerSeatController seat) && seat != null && seat.ActiveLoadout.Count > 0)
+            {
+                return seat.ActiveLoadout.Count;
+            }
+
+            return DeckRules.DeckSize;
+        }
+
+        private ushort ResolveSeatLoadoutCardServer(byte seatId, int slotIndex)
+        {
+            if (_context != null
+                && _context.TryGetSeat(seatId, out PlayerSeatController seat)
+                && seat != null
+                && slotIndex >= 0
+                && slotIndex < seat.ActiveLoadout.Count)
+            {
+                return seat.ActiveLoadout[slotIndex];
+            }
+
+            return 0;
         }
 
         [ObserversRpc]

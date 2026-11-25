@@ -43,6 +43,7 @@ namespace Game.Gameplay
     {
         [SerializeField] private float _maxBuildRange = 10f;
         [SerializeField] private float _maxGroundPlacementDistance = 3.25f;
+        [SerializeField] private float _sellRefundRatio = StructureSellRules.DefaultSellRefundRatio;
         [SerializeField] private StructureBase _defaultStructurePrefab;
         [SerializeField] private CardCatalogSO _cardCatalog;
 
@@ -52,11 +53,13 @@ namespace Game.Gameplay
 
         public float MaxBuildRange => _maxBuildRange;
         public float MaxGroundPlacementDistance => _maxGroundPlacementDistance;
+        public float SellRefundRatio => _sellRefundRatio;
         public CardCatalogSO CardCatalog => _cardCatalog;
 
         public event Action<BuildFeedback> BuildFeedbackReceived;
         public event Action<BuildFeedback> StructureBuilt;
         public event Action<byte, ushort, int> CarryCancelled;
+        public event Action<byte, ushort, int> StructureSold;
 
         private void OnEnable()
         {
@@ -80,6 +83,10 @@ namespace Game.Gameplay
             }
 
             _context = context;
+            if (_context != null)
+            {
+                _context.BuildController = this;
+            }
             _gameMode = gameMode;
             if (cardCatalog != null)
             {
@@ -222,6 +229,82 @@ namespace Game.Gameplay
             ProcessBuildRequestServer(seatId, cardId, requestedWorldPosition, sender);
         }
 
+        public bool BeginCarryFromDockedBaseServer(byte seatId, int slotIndex, NetworkConnection sender)
+        {
+            if (!IsServerInitialized)
+            {
+                return false;
+            }
+
+            ushort cardId = ResolveSlotCardIdServer(seatId, slotIndex);
+            ProcessBeginCarryServer(seatId, cardId, slotIndex, sender);
+            return _context != null
+                && _context.TryGetAirship(seatId, out AirshipController ship)
+                && ship != null
+                && ship.IsCarrying
+                && ship.CarryState.SlotIndex == slotIndex;
+        }
+
+        public int ComputeSellRefundForCard(ushort cardId)
+        {
+            if (_cardCatalog != null && cardId != 0 && _cardCatalog.TryGetCard(cardId, out StructureCardSO card) && card != null)
+            {
+                return StructureSellRules.ComputeSellRefund(card.BuildCostGold, _sellRefundRatio);
+            }
+
+            return 0;
+        }
+
+        public bool TrySellStructureServer(byte seatId, StructureBase structure, NetworkConnection sender, out int refundedGold)
+        {
+            refundedGold = 0;
+            if (!IsServerInitialized || structure == null)
+            {
+                return false;
+            }
+
+            MatchPhase phase = _gameMode != null ? _gameMode.Phase : MatchPhase.Playing;
+            if (phase != MatchPhase.Playing)
+            {
+                return false;
+            }
+
+            if (_context == null || !_context.TryGetSeat(seatId, out PlayerSeatController seat) || seat == null)
+            {
+                return false;
+            }
+
+            if (sender != null && seat.Owner != sender)
+            {
+                return false;
+            }
+
+            if (!StructureSellRules.CanSellStructure(structure.Category, structure.IsAlive, structure.Team, seat.Team))
+            {
+                return false;
+            }
+
+            ushort soldCardId = structure.CardId;
+            refundedGold = ComputeSellRefundForCard(soldCardId);
+            if (!structure.SellAndDespawnServer())
+            {
+                refundedGold = 0;
+                return false;
+            }
+
+            if (refundedGold > 0)
+            {
+                RefundSeatGold(seat, seatId, refundedGold);
+            }
+
+            if (sender != null && sender.IsActive)
+            {
+                NotifyStructureSoldTargetRpc(sender, seatId, soldCardId, refundedGold);
+            }
+
+            return true;
+        }
+
         private void ProcessBeginCarryServer(byte seatId, ushort cardId, int slotIndex, NetworkConnection sender)
         {
             MatchPhase phase = _gameMode != null ? _gameMode.Phase : MatchPhase.Playing;
@@ -233,6 +316,7 @@ namespace Game.Gameplay
             StructureCardSO card = null;
             bool cardExists = _cardCatalog != null && cardId != 0 && _cardCatalog.TryGetCard(cardId, out card) && card != null;
             bool cardInLoadout = seatExists && cardId != 0 && seat.IsCardInActiveLoadout(cardId);
+            bool dockedAtBase = airshipExists && airship.Docking != null && airship.Docking.IsDockedAtBase;
 
             Vector2 shipPos = airshipExists ? (Vector2)airship.transform.position : Vector2.zero;
 
@@ -267,7 +351,12 @@ namespace Game.Gameplay
                 withinBuildRange: true,
                 insideTeamTerritory: true,
                 validTerrain: true,
-                overlapsExistingStructure: false));
+                overlapsExistingStructure: false,
+                requiresGoldDeposit: false,
+                hasValidGoldDeposit: true,
+                depositOccupied: false,
+                withinGroundProximity: true,
+                mustDockAtBaseSatisfied: dockedAtBase));
 
             if (reason != BuildRejectReason.None)
             {
@@ -767,6 +856,12 @@ namespace Game.Gameplay
         private void NotifyCarryCancelledTargetRpc(NetworkConnection target, byte seatId, ushort cardId, int refundedGold)
         {
             CarryCancelled?.Invoke(seatId, cardId, refundedGold);
+        }
+
+        [TargetRpc]
+        private void NotifyStructureSoldTargetRpc(NetworkConnection target, byte seatId, ushort cardId, int refundedGold)
+        {
+            StructureSold?.Invoke(seatId, cardId, refundedGold);
         }
 
         [ObserversRpc]

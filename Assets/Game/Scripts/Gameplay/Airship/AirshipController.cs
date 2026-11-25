@@ -32,6 +32,8 @@ namespace Game.Gameplay
         private float _respawnTimer;
         private int _lastManualFireTick = -100;
         private Vector2 _lastMouseAimScreenPos;
+        private readonly WeaponFireInputGate _weaponFireGate = new();
+        private DockedInteractionSubMode _lastObservedSubMode = DockedInteractionSubMode.None;
         private bool _clientTickSubscribed;
 
         public byte SeatId => _seatId.Value;
@@ -280,10 +282,47 @@ namespace Game.Gameplay
                 return;
             }
 
-            bool isDockedAndControlling = _docking != null && _docking.IsDocked && !_carryState.Value.IsCarrying;
-            if (isDockedAndControlling)
+            bool isDockedAndNotCarrying = _docking != null && _docking.IsDocked && !_carryState.Value.IsCarrying;
+            if (isDockedAndNotCarrying)
             {
                 _movement?.SubmitMoveInput(Vector2.zero);
+
+                DockedInteractionSubMode subMode = _docking.SubMode;
+                if (subMode == DockedInteractionSubMode.BaseDeckSelect
+                    || subMode == DockedInteractionSubMode.StructureActionSelect
+                    || subMode == DockedInteractionSubMode.None)
+                {
+                    if (input.DockPressed || input.CancelCarryPressed)
+                    {
+                        _docking.RequestToggleDock();
+                        return;
+                    }
+
+                    if (input.CycleDelta != 0)
+                    {
+                        _docking.RequestCycleDockedSelection(input.CycleDelta);
+                    }
+
+                    if (input.ConfirmPlacePressed)
+                    {
+                        if (subMode == DockedInteractionSubMode.StructureActionSelect)
+                        {
+                            _weaponFireGate.LockUntilRelease();
+                        }
+
+                        _docking.RequestConfirmDockedSelection();
+                    }
+
+                    _lastObservedSubMode = subMode;
+                    return;
+                }
+
+                // SubMode == WeaponManualControl
+                if (_lastObservedSubMode != DockedInteractionSubMode.WeaponManualControl)
+                {
+                    _weaponFireGate.LockUntilRelease();
+                    _lastObservedSubMode = DockedInteractionSubMode.WeaponManualControl;
+                }
 
                 bool hasDirectAim = false;
                 Vector2 directAimDir = Vector2.zero;
@@ -320,23 +359,30 @@ namespace Game.Gameplay
                     return;
                 }
 
-                if (input.SelectedBuildSlot >= 0 && input.SelectedBuildSlot < DeckRules.DeckSize)
+                if (input.CancelCarryPressed)
                 {
-                    ActiveBuildControllerRegistry.Current?.RequestBeginCarryFromSlot(_seatId.Value, input.SelectedBuildSlot);
+                    _docking.RequestExitWeaponControl();
                     return;
                 }
 
-                if (input.FireHeld || input.ConfirmPlacePressed)
+                if (_weaponFireGate.EvaluateFireInput(input.FirePressed, input.FireHeld, input.ConfirmPlacePressed))
                 {
                     int tick = TimeManager != null ? (int)TimeManager.Tick : 0;
                     if (tick == 0 || tick - _lastManualFireTick >= 4)
                     {
                         _lastManualFireTick = tick;
+                        _weaponFireGate.LockUntilRelease();
                         _docking.RequestDockedFire(hasDirectAim ? directAimDir : Vector2.zero);
                     }
                 }
 
                 return;
+            }
+
+            if (_lastObservedSubMode != DockedInteractionSubMode.None)
+            {
+                _weaponFireGate.Reset();
+                _lastObservedSubMode = DockedInteractionSubMode.None;
             }
 
             _movement?.SubmitMoveInput(input.Move);
@@ -353,17 +399,6 @@ namespace Game.Gameplay
             else if (_carryState.Value.IsCarrying && input.ConfirmPlacePressed)
             {
                 ActiveBuildControllerRegistry.Current?.RequestDeployCarried(_seatId.Value, transform.position);
-            }
-            else if (input.SelectedBuildSlot >= 0 && input.SelectedBuildSlot < DeckRules.DeckSize)
-            {
-                if (_carryState.Value.IsCarrying && _carryState.Value.SlotIndex == input.SelectedBuildSlot)
-                {
-                    ActiveBuildControllerRegistry.Current?.RequestDeployCarried(_seatId.Value, transform.position);
-                }
-                else
-                {
-                    ActiveBuildControllerRegistry.Current?.RequestBeginCarryFromSlot(_seatId.Value, input.SelectedBuildSlot);
-                }
             }
         }
 
@@ -400,6 +435,17 @@ namespace Game.Gameplay
 
         private void HandleDockStateChanged(AirshipDockState state)
         {
+            if (state.SubMode == DockedInteractionSubMode.WeaponManualControl
+                && _lastObservedSubMode != DockedInteractionSubMode.WeaponManualControl)
+            {
+                _weaponFireGate.LockUntilRelease();
+            }
+            else if (state.SubMode != DockedInteractionSubMode.WeaponManualControl)
+            {
+                _weaponFireGate.Reset();
+            }
+
+            _lastObservedSubMode = state.SubMode;
             UpdateVisuals();
         }
 
