@@ -31,6 +31,26 @@ namespace PirateGame.Networking
         public bool IsServer => manager != null && manager.ServerManager.Started;
         public bool IsClient => manager != null && manager.ClientManager.Started;
         public bool IsAuthenticated { get; private set; }
+        public bool HasAuthenticatedRemotePeer
+        {
+            get
+            {
+                if (manager == null || !manager.Initialized || !manager.ServerManager.Started)
+                {
+                    return false;
+                }
+
+                foreach (var peer in manager.ServerManager.Clients.Values)
+                {
+                    if (peer != null && !peer.IsLocalClient && peer.IsAuthenticated)
+                    {
+                        return true;
+                    }
+                }
+
+                return false;
+            }
+        }
         public string ServerStatus => serverState.ToString();
         public string ClientStatus => clientState.ToString();
         public NetworkManager Manager => manager;

@@ -1,0 +1,92 @@
+%YAML 1.1
+%TAG !u! tag:unity3d.com,2011:
+--- !u!114 &11400000
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 0}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: 9a4e4a87be5cce542af76e201c95c0c3, type: 3}
+  m_Name: PreviewCatalog
+  m_EditorClassIdentifier: PirateGame.UI::PirateGame.UI.PreviewCatalog
+  cards:
+  - title: Territory Balloon
+    shortName: Balloon
+    description: Expands territory.
+    requiredVictory: 0
+    price:
+    health: 
+    cooldown: 
+  - title: Mining Camp
+    shortName: Mine
+    description: Produces gold.
+    requiredVictory: 0
+    price:
+    health: 
+    cooldown: 
+  - title: Cannon Tower
+    shortName: Cannon
+    description: Manually aim and fire.
+    requiredVictory: 0
+    price: 
+    health: 
+    cooldown: 
+  - title: Shield Tower
+    shortName: Shield
+    description: Protects nearby structures.
+    requiredVictory: 2
+    price: 
+    health: 
+    cooldown: 
+  - title: Repair Tower
+    shortName: Repair
+    description: Repairs structures.
+    requiredVictory: 4
+    price: 
+    health: 
+    cooldown: 
+  - title: Missile Tower
+    shortName: Missile
+    description: Launches missiles.
+    requiredVictory: 6
+    price: 
+    health: 
+    cooldown: 
+  - title: Laser Tower
+    shortName: Laser
+    description: Fires a focused beam.
+    requiredVictory: 8
+    price: 
+    health: 
+    cooldown: 
+  plannedStars: 30
+  previewGold: 44
+  previewIncome: 60
+  previewHealth: 30
+  stages:
+  - title: FIRST VOYAGE
+    previewCaption: FIRST VOYAGE
+    objectives:
+    - Destroy enemy ship
+    - Build a Mining Camp
+    - Expand territory
+    objectiveLabels:
+    - VICTORY
+    - BUILD MINE
+    - EXPAND
+  - title: SHIELD PIRATE
+    previewCaption: SHIELD PIRATE
+    objectives:
+    - Win the battle
+    - Protect your ship
+    - Expand territory
+    objectiveLabels:
+    - VICTORY
+    - PROTECT SHIP
+    - EXPAND
+  dialogue:
+  - You will not pass this island, Prince!
+  - Then we sail together, Captain.

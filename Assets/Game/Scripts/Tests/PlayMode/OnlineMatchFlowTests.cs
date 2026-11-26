@@ -599,6 +599,7 @@ namespace Game.Tests.PlayMode
             public bool IsServer { get; private set; }
             public bool IsClient { get; private set; }
             public bool IsAuthenticated { get; private set; }
+            public bool HasAuthenticatedRemotePeer => false;
             public string LastError => string.Empty;
             public event Action Changed;
 
@@ -640,6 +641,7 @@ namespace Game.Tests.PlayMode
             public bool IsServer => false;
             public bool IsClient => true;
             public bool IsAuthenticated => true;
+            public bool HasAuthenticatedRemotePeer => false;
             public string LastError => string.Empty;
             public event Action Changed { add { } remove { } }
             public bool StartHost(ulong localPlatformId) => false;

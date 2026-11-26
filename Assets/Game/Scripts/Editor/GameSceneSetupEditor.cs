@@ -21,14 +21,13 @@ using UnityEngine;
 using UnityEngine.EventSystems;
 using UnityEngine.InputSystem.UI;
 using UnityEngine.SceneManagement;
-using UnityEngine.UI;
 
 namespace Game.Editor
 {
     public static class GameSceneSetupEditor
     {
         public const string ScenesDirectory = "Assets/Game/Scenes";
-        public const string MainMenuScenePath = "Assets/Game/Scenes/MainMenu.unity";
+        public const string MainMenuScenePath = "Assets/Scenes/MainMenu.unity";
         public const string ArenaScenePath = "Assets/Game/Scenes/CannonBrawlArena.unity";
         public const string NetworkTestScenePath = "Assets/Scenes/NetworkTest.unity";
         private const string GreyboxArtDirectory = "Assets/Game/Art/Greybox";
@@ -44,14 +43,17 @@ namespace Game.Editor
             M1SetupEditor.CreateM1NetworkPrefabs();
             M1SetupEditor.CreateGreyboxCardCatalogAssets();
 
-            CreateMainMenuScene();
+            if (AssetDatabase.LoadAssetAtPath<SceneAsset>(MainMenuScenePath) == null)
+            {
+                Debug.LogWarning($"[M1-1] Primary MainMenu scene not found at {MainMenuScenePath}. Keeping Build Settings order.");
+            }
             CreateArenaScene(greyboxSprite);
             EnsureNetworkFoundationGameplayPrefabs();
             UpdateBuildSettings();
 
             AssetDatabase.SaveAssets();
             AssetDatabase.Refresh();
-            Debug.Log("[M1-1] MainMenu ve CannonBrawlArena sahneleri ile M1-1 prefab kurulumu tamamlandı.");
+            Debug.Log("[M1-1] CannonBrawlArena sahnesi, M1-1 prefab kurulumu ve Build Settings guncellendi (Assets/Scenes/MainMenu.unity korundu).");
         }
 
         [MenuItem("Tools/Game/Build Windows (MainMenu + Online + Arena)")]
@@ -120,7 +122,8 @@ namespace Game.Editor
         {
             if (AssetDatabase.LoadAssetAtPath<SceneAsset>(MainMenuScenePath) == null)
             {
-                SetupAllScenesAndPrefabs();
+                Debug.LogError($"[M1-1] MainMenu scene not found at {MainMenuScenePath}.");
+                return;
             }
 
             if (EditorSceneManager.SaveCurrentModifiedScenesIfUserWantsTo())
@@ -185,89 +188,6 @@ namespace Game.Editor
             }
 
             return AssetDatabase.LoadAssetAtPath<Sprite>(GreyboxSquarePath);
-        }
-
-        private static void CreateMainMenuScene()
-        {
-            Scene previous = SceneManager.GetActiveScene();
-            Scene menuScene = EditorSceneManager.NewScene(NewSceneSetup.EmptyScene, NewSceneMode.Additive);
-            SceneManager.SetActiveScene(menuScene);
-
-            try
-            {
-                var cameraGo = new GameObject("Main Camera");
-                cameraGo.tag = "MainCamera";
-                var cam = cameraGo.AddComponent<Camera>();
-                cam.orthographic = true;
-                cam.transform.position = new Vector3(0f, 0f, -10f);
-                cam.clearFlags = CameraClearFlags.SolidColor;
-                cam.backgroundColor = new Color(0.067f, 0.094f, 0.153f);
-
-                var eventSystemGo = new GameObject("EventSystem");
-                eventSystemGo.AddComponent<EventSystem>();
-                eventSystemGo.AddComponent<InputSystemUIInputModule>();
-
-                Font font = Resources.GetBuiltinResource<Font>("LegacyRuntime.ttf");
-
-                var canvasGo = new GameObject("MainMenuCanvas");
-                var canvas = canvasGo.AddComponent<Canvas>();
-                canvas.renderMode = RenderMode.ScreenSpaceOverlay;
-                var scaler = canvasGo.AddComponent<CanvasScaler>();
-                scaler.uiScaleMode = CanvasScaler.ScaleMode.ScaleWithScreenSize;
-                scaler.referenceResolution = new Vector2(1920f, 1080f);
-                scaler.matchWidthOrHeight = 0.5f;
-                canvasGo.AddComponent<GraphicRaycaster>();
-
-                var bgGo = CreateUiObject("Background", canvasGo.transform);
-                StretchFull(bgGo.GetComponent<RectTransform>());
-                var bgImg = bgGo.AddComponent<Image>();
-                bgImg.color = new Color(0.067f, 0.094f, 0.153f, 1f);
-
-                var panelGo = CreateUiObject("MenuPanel", canvasGo.transform);
-                var panelRect = panelGo.GetComponent<RectTransform>();
-                panelRect.anchorMin = new Vector2(0.5f, 0.5f);
-                panelRect.anchorMax = new Vector2(0.5f, 0.5f);
-                panelRect.sizeDelta = new Vector2(580f, 560f);
-                var panelImg = panelGo.AddComponent<Image>();
-                panelImg.color = new Color(0.11f, 0.15f, 0.24f, 0.96f);
-
-                var layout = panelGo.AddComponent<VerticalLayoutGroup>();
-                layout.padding = new RectOffset(36, 36, 36, 36);
-                layout.spacing = 16f;
-                layout.childAlignment = TextAnchor.UpperCenter;
-                layout.childControlWidth = true;
-                layout.childControlHeight = false;
-                layout.childForceExpandWidth = true;
-                layout.childForceExpandHeight = false;
-
-                CreateLabel("TitleText", panelGo.transform, font, "CANNON BRAWL", 28, FontStyle.Bold, Color.white, 46f);
-                CreateLabel("SubtitleText", panelGo.transform, font, "Hava Gemisi & Topçu Strateji", 15, FontStyle.Normal, new Color(0.75f, 0.82f, 0.92f), 28f);
-
-                Button localBtn = CreateButton("LocalPvPButton", panelGo.transform, font, "Yerel Karşılaşma (2 Oyuncu)", 64f, new Color(0.16f, 0.52f, 0.34f));
-                Button onlineBtn = CreateButton("OnlinePvPButton", panelGo.transform, font, "Çevrimiçi Maç (Steam)", 64f, new Color(0.17f, 0.39f, 0.68f));
-                Button storyBtn = CreateButton("StoryWipButton", panelGo.transform, font, "Hikaye (Yakında)", 54f, new Color(0.24f, 0.26f, 0.31f));
-                storyBtn.interactable = false;
-                Button quitBtn = CreateButton("QuitButton", panelGo.transform, font, "Çıkış", 48f, new Color(0.45f, 0.2f, 0.22f));
-
-                Text statusLabel = CreateLabel("StatusLabel", panelGo.transform, font, string.Empty, 14, FontStyle.Italic, new Color(0.9f, 0.85f, 0.55f), 44f);
-
-                var menuController = canvasGo.AddComponent<MainMenuController>();
-                SetRef(menuController, "_localPvPButton", localBtn);
-                SetRef(menuController, "_onlinePvPButton", onlineBtn);
-                SetRef(menuController, "_storyWipButton", storyBtn);
-                SetRef(menuController, "_quitButton", quitBtn);
-                SetRef(menuController, "_statusLabel", statusLabel);
-
-                EditorSceneManager.SaveScene(menuScene, MainMenuScenePath);
-            }
-            finally
-            {
-                if (previous.IsValid())
-                {
-                    SceneManager.SetActiveScene(previous);
-                    EditorSceneManager.CloseScene(menuScene, true);
-                }
-            }
         }
 
         private static void CreateArenaScene(Sprite greyboxSprite)
@@ -492,69 +412,6 @@ namespace Game.Editor
             }
 
             return go.transform;
-        }
-
-        private static GameObject CreateUiObject(string name, Transform parent)
-        {
-            var go = new GameObject(name, typeof(RectTransform));
-            go.transform.SetParent(parent, false);
-            return go;
-        }
-
-        private static void StretchFull(RectTransform rect)
-        {
-            rect.anchorMin = Vector2.zero;
-            rect.anchorMax = Vector2.one;
-            rect.offsetMin = Vector2.zero;
-            rect.offsetMax = Vector2.zero;
-        }
-
-        private static Text CreateLabel(string name, Transform parent, Font font, string content, int fontSize, FontStyle style, Color color, float height)
-        {
-            var go = CreateUiObject(name, parent);
-            var rect = go.GetComponent<RectTransform>();
-            rect.sizeDelta = new Vector2(0f, height);
-
-            var text = go.AddComponent<Text>();
-            text.font = font;
-            text.text = content;
-            text.fontSize = fontSize;
-            text.fontStyle = style;
-            text.color = color;
-            text.alignment = TextAnchor.MiddleCenter;
-            text.horizontalOverflow = HorizontalWrapMode.Wrap;
-            text.verticalOverflow = VerticalWrapMode.Truncate;
-            return text;
-        }
-
-        private static Button CreateButton(string name, Transform parent, Font font, string labelText, float height, Color backgroundColor)
-        {
-            var go = CreateUiObject(name, parent);
-            var rect = go.GetComponent<RectTransform>();
-            rect.sizeDelta = new Vector2(0f, height);
-
-            var img = go.AddComponent<Image>();
-            img.color = backgroundColor;
-
-            var button = go.AddComponent<Button>();
-            var colors = button.colors;
-            colors.normalColor = Color.white;
-            colors.highlightedColor = new Color(1.1f, 1.1f, 1.1f, 1f);
-            colors.pressedColor = new Color(0.85f, 0.85f, 0.85f, 1f);
-            colors.disabledColor = new Color(0.55f, 0.55f, 0.55f, 0.65f);
-            button.colors = colors;
-
-            var labelGo = CreateUiObject("Label", go.transform);
-            StretchFull(labelGo.GetComponent<RectTransform>());
-            var text = labelGo.AddComponent<Text>();
-            text.font = font;
-            text.text = labelText;
-            text.fontSize = 18;
-            text.fontStyle = FontStyle.Bold;
-            text.color = Color.white;
-            text.alignment = TextAnchor.MiddleCenter;
-
-            return button;
         }
 
         private static void SetRef(Object target, string name, Object value)

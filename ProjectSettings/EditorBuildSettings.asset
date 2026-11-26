@@ -6,8 +6,8 @@ EditorBuildSettings:
   serializedVersion: 2
   m_Scenes:
   - enabled: 1
-    path: Assets/Game/Scenes/MainMenu.unity
-    guid: ffa2a2a8cddb976478f4cc4974ea5352
+    path: Assets/Scenes/MainMenu.unity
+    guid: b9f6d6da6635de44388647670a043854
   - enabled: 1
     path: Assets/Game/Scenes/CannonBrawlArena.unity
     guid: 0fffb7da073990a49bf255da7c4ab5e9

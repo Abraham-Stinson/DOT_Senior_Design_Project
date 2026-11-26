@@ -1,0 +1,17 @@
+{
+  "name": "PirateGame.UI.EditMode.Tests",
+  "references": [
+    "PirateGame.UI",
+    "UnityEngine.UI",
+    "Unity.TextMeshPro",
+    "Unity.InputSystem",
+    "PirateGame.Networking",
+    "PirateGame.UI.Presentation"
+  ],
+  "optionalUnityReferences": [
+    "TestAssemblies"
+  ],
+  "includePlatforms": [
+    "Editor"
+  ]
+}

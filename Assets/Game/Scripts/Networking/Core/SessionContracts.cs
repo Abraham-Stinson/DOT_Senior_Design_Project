@@ -16,6 +16,7 @@ namespace PirateGame.Networking
         bool IsServer { get; }
         bool IsClient { get; }
         bool IsAuthenticated { get; }
+        bool HasAuthenticatedRemotePeer { get; }
         string LastError { get; }
         event Action Changed;
         bool StartHost(ulong localPlatformId);

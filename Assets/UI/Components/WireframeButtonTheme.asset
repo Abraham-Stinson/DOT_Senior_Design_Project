@@ -1,0 +1,23 @@
+%YAML 1.1
+%TAG !u! tag:unity3d.com,2011:
+--- !u!114 &11400000
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 0}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: 2b0393122a850184e9cecb1a0eb7f7e2, type: 3}
+  m_Name: WireframeButtonTheme
+  m_EditorClassIdentifier: PirateGame.UI::PirateGame.UI.ButtonTheme
+  normal: {r: 0, g: 0, b: 0, a: 0}
+  hover: {r: 0.12, g: 0.12, b: 0.12, a: 0.12}
+  pressed: {r: 0.1, g: 0.1, b: 0.1, a: 0.3}
+  disabled: {r: 0.68, g: 0.68, b: 0.68, a: 0.42}
+  confirmed: {r: 0.24, g: 0.24, b: 0.24, a: 0.18}
+  focusOutline: {r: 0.16, g: 0.16, b: 0.16, a: 0.9}
+  transitionSeconds: 0.07
+  overlaySprite: {fileID: 0}
+  overrideFont: {fileID: 0}

@@ -1214,7 +1214,9 @@ namespace Game.Tests.PlayMode
             Assert.That(ship0.Docking.SubMode, Is.EqualTo(DockedInteractionSubMode.WeaponManualControl));
 
             // 4. Release button cleanly, then perform a fresh FirePressed -> fires once and exits control.
-            for (int i = 0; i < 4; i++)
+            uint releaseStartTick = _networkManager.TimeManager.Tick;
+            float releaseDeadline = Time.realtimeSinceStartup + 2f;
+            while (_networkManager.TimeManager.Tick < releaseStartTick + 3 && Time.realtimeSinceStartup < releaseDeadline)
             {
                 _inputRouter.InjectSyntheticInput(0, PlayerInputSnapshot.Empty);
                 yield return null;

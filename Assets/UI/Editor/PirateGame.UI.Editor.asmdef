@@ -1,0 +1,5 @@
+{
+  "name": "PirateGame.UI.Editor",
+  "references": [],
+  "includePlatforms": ["Editor"]
+}
