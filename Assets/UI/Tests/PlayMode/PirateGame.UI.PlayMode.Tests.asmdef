@@ -1,0 +1,22 @@
+{
+  "name": "PirateGame.UI.PlayMode.Tests",
+  "references": [
+    "PirateGame.UI",
+    "PirateGame.Networking",
+    "PirateGame.Networking.Core",
+    "UnityEngine.UI",
+    "Unity.TextMeshPro",
+    "Unity.InputSystem",
+    "PirateGame.UI.Presentation"
+  ],
+  "optionalUnityReferences": [
+    "TestAssemblies"
+  ],
+  "includePlatforms": [
+    "Editor",
+    "WindowsStandalone64",
+    "WindowsStandalone32",
+    "LinuxStandalone64",
+    "macOSStandalone"
+  ]
+}

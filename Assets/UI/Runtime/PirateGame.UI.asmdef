@@ -1,0 +1,19 @@
+{
+  "name": "PirateGame.UI",
+  "references": [
+    "Unity.TextMeshPro",
+    "UnityEngine.UI",
+    "Unity.InputSystem",
+    "PirateGame.Networking",
+    "PirateGame.Networking.Core",
+    "FishNet.Runtime",
+    "PirateGame.UI.Presentation"
+  ],
+  "includePlatforms": [
+    "Editor",
+    "WindowsStandalone64",
+    "WindowsStandalone32",
+    "LinuxStandalone64",
+    "macOSStandalone"
+  ]
+}

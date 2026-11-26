@@ -1,0 +1,7 @@
+{
+  "name": "PirateGame.UI.Presentation",
+  "references": [
+    "UnityEngine.UI",
+    "Unity.TextMeshPro"
+  ]
+}
