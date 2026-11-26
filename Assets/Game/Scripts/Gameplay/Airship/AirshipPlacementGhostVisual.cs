@@ -142,29 +142,40 @@ namespace Game.Gameplay
                     ? new Color(0.38f, 0.92f, 1f, 0.95f)
                     : Color.white);
 
-            // Ghost footprint at target placement point (world space, detached from airship transform).
-            _ghostRenderer.gameObject.SetActive(true);
-            _ghostRenderer.transform.position = new Vector3(targetPos.x, targetPos.y, 0f);
-            _ghostRenderer.transform.localScale = new Vector3(footprint.x, footprint.y, 1f);
-            _ghostRenderer.color = statusColor;
-
-            // Expansion circle preview when carrying Territory Balloon.
-            if (territoryRadius > 0.01f)
+            // Ghost footprint & territory preview belong only to the local owner so online opponents don't see private placement previews.
+            bool showOwnerPreview = _airship.IsOwner;
+            if (showOwnerPreview)
             {
-                if (_previewCircle == null)
+                _ghostRenderer.gameObject.SetActive(true);
+                _ghostRenderer.transform.position = new Vector3(targetPos.x, targetPos.y, 0f);
+                _ghostRenderer.transform.localScale = new Vector3(footprint.x, footprint.y, 1f);
+                _ghostRenderer.color = statusColor;
+
+                if (territoryRadius > 0.01f)
                 {
-                    var ringGo = new GameObject($"GhostTerritoryPreview_{_airship.SeatId}");
-                    _previewCircle = ringGo.AddComponent<TerritoryCircleVisual>();
-                }
+                    if (_previewCircle == null)
+                    {
+                        var ringGo = new GameObject($"GhostTerritoryPreview_{_airship.SeatId}");
+                        _previewCircle = ringGo.AddComponent<TerritoryCircleVisual>();
+                    }
 
-                Color ringColor = canPlace
-                    ? new Color(0.32f, 0.95f, 0.55f)
-                    : new Color(0.96f, 0.3f, 0.3f);
-                _previewCircle.Configure(targetPos, territoryRadius, ringColor, fillAlpha: 0.07f, borderAlpha: 0.85f, borderWidth: 0.06f);
+                    Color ringColor = canPlace
+                        ? new Color(0.32f, 0.95f, 0.55f)
+                        : new Color(0.96f, 0.3f, 0.3f);
+                    _previewCircle.Configure(targetPos, territoryRadius, ringColor, fillAlpha: 0.07f, borderAlpha: 0.85f, borderWidth: 0.06f);
+                }
+                else if (_previewCircle != null)
+                {
+                    _previewCircle.gameObject.SetActive(false);
+                }
             }
-            else if (_previewCircle != null)
+            else
             {
-                _previewCircle.gameObject.SetActive(false);
+                _ghostRenderer.gameObject.SetActive(false);
+                if (_previewCircle != null)
+                {
+                    _previewCircle.gameObject.SetActive(false);
+                }
             }
 
             if (_airship.IsOwner)

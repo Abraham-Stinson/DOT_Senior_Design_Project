@@ -51,6 +51,18 @@ namespace Game.Gameplay
             base.OnStopServer();
         }
 
+        public override void OnStartClient()
+        {
+            base.OnStartClient();
+            ActiveArenaBootstrapRegistry.FindFor(NetworkManager)?.RegisterReplicatedGameMode(this);
+        }
+
+        public override void OnStopClient()
+        {
+            ActiveArenaBootstrapRegistry.FindFor(NetworkManager)?.UnregisterReplicatedGameMode(this);
+            base.OnStopClient();
+        }
+
         public void InitializeMatchServer(MatchMode mode, IMatchRule rule, MatchContext context)
         {
             if (!IsServerInitialized)

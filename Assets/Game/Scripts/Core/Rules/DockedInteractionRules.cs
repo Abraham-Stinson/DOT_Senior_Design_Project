@@ -1,3 +1,5 @@
+using UnityEngine;
+
 namespace Game.Core
 {
     /// <summary>
@@ -87,6 +89,31 @@ namespace Game.Core
         public static int ComputeSellRefund(int buildCostGold, float refundRatio = DefaultSellRefundRatio)
         {
             return EconomyLedger.ComputeRefund(buildCostGold, refundRatio);
+        }
+    }
+
+    public static class StructureConstructionRules
+    {
+        public const float MinVisualHeightScale = 0.25f;
+
+        public static float ComputeProgress(float elapsedSeconds, float buildDurationSeconds)
+        {
+            if (buildDurationSeconds <= 0.001f)
+            {
+                return 1f;
+            }
+
+            return Mathf.Clamp01(elapsedSeconds / buildDurationSeconds);
+        }
+
+        public static bool IsComplete(float elapsedSeconds, float buildDurationSeconds)
+        {
+            return buildDurationSeconds <= 0.001f || elapsedSeconds >= buildDurationSeconds - 0.0001f;
+        }
+
+        public static float ComputeVisualHeightScale(float progress)
+        {
+            return Mathf.Lerp(MinVisualHeightScale, 1f, Mathf.Clamp01(progress));
         }
     }
 }

@@ -37,6 +37,18 @@ namespace Game.Gameplay
             base.OnStopServer();
         }
 
+        public override void OnStartClient()
+        {
+            base.OnStartClient();
+            ActiveArenaBootstrapRegistry.FindFor(NetworkManager)?.RegisterReplicatedEconomyController(this);
+        }
+
+        public override void OnStopClient()
+        {
+            ActiveArenaBootstrapRegistry.FindFor(NetworkManager)?.UnregisterReplicatedEconomyController(this);
+            base.OnStopClient();
+        }
+
         public void InitializeServer(MatchContext context, GameModeController gameMode, float? baseIncomeOverride = null)
         {
             if (!IsServerInitialized || context == null)

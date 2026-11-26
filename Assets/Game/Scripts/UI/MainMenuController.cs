@@ -36,7 +36,7 @@ namespace Game.UI
                 _quitButton.onClick.AddListener(QuitGame);
             }
 
-            SetStatus("Oyun modunu seçin: Öncelik 1 Local PvP · Öncelik 2 Steam Online PvP · Hikaye (WIP)");
+            SetStatus(string.Empty);
         }
 
         private void OnDestroy()
@@ -89,7 +89,7 @@ namespace Game.UI
 
             if (!Application.CanStreamedLevelBeLoaded(decision.TargetScene))
             {
-                SetStatus($"Sahne Build Settings içinde bulunamadı: {decision.TargetScene}. Tools > Game > Setup MainMenu & CannonBrawlArena (M1-1) çalıştırın.");
+                SetStatus($"Sahne bulunamadı: {decision.TargetScene}.");
                 return false;
             }
 

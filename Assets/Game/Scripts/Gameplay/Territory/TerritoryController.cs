@@ -72,7 +72,14 @@ namespace Game.Gameplay
         public override void OnStartClient()
         {
             base.OnStartClient();
+            ActiveArenaBootstrapRegistry.FindFor(NetworkManager)?.RegisterReplicatedTerritoryController(this);
             RefreshZoneVisuals();
+        }
+
+        public override void OnStopClient()
+        {
+            ActiveArenaBootstrapRegistry.FindFor(NetworkManager)?.UnregisterReplicatedTerritoryController(this);
+            base.OnStopClient();
         }
 
         public void InitializeServer(

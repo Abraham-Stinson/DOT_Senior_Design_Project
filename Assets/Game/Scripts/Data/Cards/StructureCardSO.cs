@@ -102,7 +102,7 @@ namespace Game.Data
                 GravityScale = Mathf.Max(0f, _projectileGravityScale),
                 SplashRadius = Mathf.Max(0f, _splashRadius),
                 CanTargetStructures = true,
-                CanTargetAirships = _canTargetAirships,
+                CanTargetAirships = false,
                 PreferHighArc = _preferHighArc,
                 MinAimAngleDegrees = minAngle,
                 MaxAimAngleDegrees = maxAngle
@@ -137,7 +137,8 @@ namespace Game.Data
             float maxHealth,
             Vector2 footprintSize,
             NetworkObject structurePrefab,
-            bool requiresGoldDeposit = false)
+            bool requiresGoldDeposit = false,
+            float buildDurationSeconds = -1f)
         {
             _territoryExpansionRadius = Mathf.Max(0f, territoryExpansionRadius);
             _incomePerSecondBonus = Mathf.Max(0f, incomePerSecondBonus);
@@ -147,6 +148,15 @@ namespace Game.Data
             _footprintSize = new Vector2(Mathf.Max(0.25f, footprintSize.x), Mathf.Max(0.25f, footprintSize.y));
             _structurePrefab = structurePrefab;
             _requiresGoldDeposit = requiresGoldDeposit;
+            if (buildDurationSeconds >= 0f)
+            {
+                _buildDurationSeconds = buildDurationSeconds;
+            }
+        }
+
+        public void SetBuildDurationSeconds(float seconds)
+        {
+            _buildDurationSeconds = Mathf.Max(0f, seconds);
         }
 
         public void ConfigureWeaponStats(

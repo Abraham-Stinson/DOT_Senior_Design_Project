@@ -49,7 +49,7 @@ namespace Game.Core
                         MenuNavigationAction.LoadArenaLocalPvP,
                         GameSceneNames.CannonBrawlArena,
                         true,
-                        "Local PvP başlatılıyor...");
+                        "Arena yükleniyor...");
 
                 case MatchMode.OnlinePvP:
                     return new MenuRouteDecision(
@@ -57,7 +57,7 @@ namespace Game.Core
                         MenuNavigationAction.LoadSteamOnlineLobby,
                         GameSceneNames.SteamOnlineLobby,
                         true,
-                        "Steam / FishNet çevrimiçi lobi açılıyor...");
+                        "Steam lobisi açılıyor...");
 
                 case MatchMode.Story:
                 default:
@@ -66,7 +66,7 @@ namespace Game.Core
                         MenuNavigationAction.BlockedWorkInProgress,
                         string.Empty,
                         false,
-                        "Hikaye Modu şu anda yapım aşamasında (WIP).");
+                        "Hikaye modu yakında eklenecek.");
             }
         }
 

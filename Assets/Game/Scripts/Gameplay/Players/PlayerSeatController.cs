@@ -45,6 +45,18 @@ namespace Game.Gameplay
             _activeLoadout.OnChange -= HandleLoadoutChanged;
         }
 
+        public override void OnStartClient()
+        {
+            base.OnStartClient();
+            ActiveArenaBootstrapRegistry.FindFor(NetworkManager)?.RegisterReplicatedSeat(this);
+        }
+
+        public override void OnStopClient()
+        {
+            ActiveArenaBootstrapRegistry.FindFor(NetworkManager)?.UnregisterReplicatedSeat(this);
+            base.OnStopClient();
+        }
+
         public bool IsCardInActiveLoadout(ushort cardId)
         {
             if (cardId == 0)

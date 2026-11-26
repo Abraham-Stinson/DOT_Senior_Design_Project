@@ -168,12 +168,7 @@ namespace Game.Core
                     continue;
                 }
 
-                if (candidate.IsAirship && !config.CanTargetAirships)
-                {
-                    continue;
-                }
-
-                if (!candidate.IsAirship && !config.CanTargetStructures)
+                if (candidate.IsAirship || !config.CanTargetStructures)
                 {
                     continue;
                 }
@@ -217,19 +212,19 @@ namespace Game.Core
 
             if (teamADestroyed && teamBDestroyed)
             {
-                outcome = new MatchOutcome(TeamId.Neutral, "Her iki HQ aynı anda yok edildi!");
+                outcome = new MatchOutcome(TeamId.Neutral, "İki üs aynı anda yıkıldı.");
                 return true;
             }
 
             if (teamBDestroyed)
             {
-                outcome = new MatchOutcome(TeamId.TeamA, "TeamB HQ yok edildi!");
+                outcome = new MatchOutcome(TeamId.TeamA, "Kırmızı Üs yıkıldı!");
                 return true;
             }
 
             if (teamADestroyed)
             {
-                outcome = new MatchOutcome(TeamId.TeamB, "TeamA HQ yok edildi!");
+                outcome = new MatchOutcome(TeamId.TeamB, "Mavi Üs yıkıldı!");
                 return true;
             }
 

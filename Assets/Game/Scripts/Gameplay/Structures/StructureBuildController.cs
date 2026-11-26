@@ -71,6 +71,18 @@ namespace Game.Gameplay
             ActiveBuildControllerRegistry.Unregister(this);
         }
 
+        public override void OnStartClient()
+        {
+            base.OnStartClient();
+            ActiveArenaBootstrapRegistry.FindFor(NetworkManager)?.RegisterReplicatedBuildController(this);
+        }
+
+        public override void OnStopClient()
+        {
+            ActiveArenaBootstrapRegistry.FindFor(NetworkManager)?.UnregisterReplicatedBuildController(this);
+            base.OnStopClient();
+        }
+
         public void InitializeServer(
             MatchContext context,
             GameModeController gameMode,
@@ -326,12 +338,6 @@ namespace Game.Gameplay
                 return;
             }
 
-            if (airshipExists && !airship.IsAlive && seatExists && phase == MatchPhase.Playing && callerOwnsSeat)
-            {
-                SendFeedbackToCaller(sender, BuildFeedback.CreateRejected(seatId, cardId, BuildRejectReason.InvalidSeat, shipPos));
-                return;
-            }
-
             int currentGold = _context?.Economy != null
                 ? _context.Economy.GetGold(seatId)
                 : (seatExists ? seat.Gold : 0);
@@ -411,9 +417,9 @@ namespace Game.Gameplay
                 return;
             }
 
-            if (!airshipExists || !airship.IsAlive || !airship.IsCarrying)
+            if (!airshipExists || !airship.IsCarrying)
             {
-                SendFeedbackToCaller(sender, BuildFeedback.CreateRejected(seatId, 0, airshipExists && !airship.IsAlive ? BuildRejectReason.InvalidSeat : BuildRejectReason.NotCarrying, requestedPosition));
+                SendFeedbackToCaller(sender, BuildFeedback.CreateRejected(seatId, 0, BuildRejectReason.NotCarrying, requestedPosition));
                 return;
             }
 
@@ -622,7 +628,7 @@ namespace Game.Gameplay
             StructureBase prefabToSpawn = ResolveStructurePrefab(card);
             StructureBase instance = Instantiate(prefabToSpawn, new Vector3(resolvedPos.x, resolvedPos.y, 0f), Quaternion.identity);
             instance.name = $"Structure_{seat.Team}_{card.DisplayName}";
-            ServerManager.Spawn(instance.NetworkObject, seat.Owner);
+            ServerManager.Spawn(instance.NetworkObject, seat.Owner, gameObject.scene);
             instance.InitializeServer(
                 card.CardId,
                 seatId,
@@ -632,7 +638,8 @@ namespace Game.Gameplay
                 footprintSize,
                 card.TerritoryExpansionRadius,
                 card.IncomePerSecondBonus,
-                _context);
+                _context,
+                card.BuildDurationSeconds);
 
             if (matchedDeposit != null)
             {

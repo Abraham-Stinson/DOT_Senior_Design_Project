@@ -93,12 +93,12 @@ namespace Game.Tests.EditMode
         }
 
         [Test]
-        public void WeaponTargetEvaluator_RespectsRangeTeamAndAirshipFilter()
+        public void WeaponTargetEvaluator_IgnoresAirshipsEvenWhenConfiguredAndSelectsValidEnemyStructure()
         {
             var candidates = new List<CombatTargetCandidate>
             {
                 new(TeamId.TeamA, isAlive: true, isAirship: false, new Vector2(2f, 0f), targetIndex: 0), // Ally
-                new(TeamId.TeamB, isAlive: true, isAirship: true, new Vector2(3f, 4f), targetIndex: 1),  // Airship
+                new(TeamId.TeamB, isAlive: true, isAirship: true, new Vector2(3f, 4f), targetIndex: 1),  // Airship (invulnerable)
                 new(TeamId.TeamB, isAlive: false, isAirship: false, new Vector2(4f, 0f), targetIndex: 2), // Dead
                 new(TeamId.TeamB, isAlive: true, isAirship: false, new Vector2(12f, 0f), targetIndex: 3), // Valid structure
                 new(TeamId.TeamB, isAlive: true, isAirship: false, new Vector2(35f, 0f), targetIndex: 4)  // Out of range
@@ -122,7 +122,7 @@ namespace Game.Tests.EditMode
             Assert.That(foundCannonTarget, Is.True);
             Assert.That(cannonBest.TargetIndex, Is.EqualTo(3));
 
-            var flakConfig = new WeaponConfig
+            var antiAirLegacyConfig = new WeaponConfig
             {
                 CanFire = true,
                 Range = 20f,
@@ -130,15 +130,32 @@ namespace Game.Tests.EditMode
                 CanTargetAirships = true
             };
 
-            bool foundFlakTarget = WeaponTargetEvaluator.TrySelectBestTarget(
+            bool foundBestTarget = WeaponTargetEvaluator.TrySelectBestTarget(
                 Vector2.zero,
                 TeamId.TeamA,
-                flakConfig,
+                antiAirLegacyConfig,
                 candidates,
-                out CombatTargetCandidate flakBest);
+                out CombatTargetCandidate bestTarget);
 
-            Assert.That(foundFlakTarget, Is.True);
-            Assert.That(flakBest.TargetIndex, Is.EqualTo(1));
+            Assert.That(foundBestTarget, Is.True);
+            Assert.That(bestTarget.IsAirship, Is.False);
+            Assert.That(bestTarget.TargetIndex, Is.EqualTo(3));
+        }
+
+        [Test]
+        public void StructureConstructionRules_ComputesProgressCompletionAndVisualScale()
+        {
+            Assert.That(StructureConstructionRules.IsComplete(0f, 0f), Is.True);
+            Assert.That(StructureConstructionRules.ComputeProgress(0f, 0f), Is.EqualTo(1f).Within(0.001f));
+
+            Assert.That(StructureConstructionRules.IsComplete(0f, 2f), Is.False);
+            Assert.That(StructureConstructionRules.ComputeProgress(1f, 2f), Is.EqualTo(0.5f).Within(0.001f));
+            Assert.That(StructureConstructionRules.IsComplete(1.99f, 2f), Is.False);
+            Assert.That(StructureConstructionRules.IsComplete(2f, 2f), Is.True);
+            Assert.That(StructureConstructionRules.ComputeProgress(3f, 2f), Is.EqualTo(1f).Within(0.001f));
+
+            Assert.That(StructureConstructionRules.ComputeVisualHeightScale(0f), Is.EqualTo(StructureConstructionRules.MinVisualHeightScale).Within(0.001f));
+            Assert.That(StructureConstructionRules.ComputeVisualHeightScale(1f), Is.EqualTo(1f).Within(0.001f));
         }
 
         [Test]

@@ -140,7 +140,7 @@ namespace Game.Gameplay
 
         public void ApplyManualAimStepServer(Vector2 aimMoveInput, float dt)
         {
-            if (!IsServerInitialized || !_hasWeapon.Value || _structure == null || !_structure.IsAlive || IsOnCooldown)
+            if (!IsServerInitialized || !_hasWeapon.Value || _structure == null || !_structure.IsAlive || !_structure.IsConstructed || IsOnCooldown)
             {
                 return;
             }
@@ -160,7 +160,7 @@ namespace Game.Gameplay
 
         public void SetManualAimDirectionServer(Vector2 aimDirection)
         {
-            if (!IsServerInitialized || !_hasWeapon.Value || _structure == null || !_structure.IsAlive || IsOnCooldown)
+            if (!IsServerInitialized || !_hasWeapon.Value || _structure == null || !_structure.IsAlive || !_structure.IsConstructed || IsOnCooldown)
             {
                 return;
             }
@@ -181,7 +181,7 @@ namespace Game.Gameplay
 
         public bool HandleManualInteractServer(byte actorSeatId, in InteractPayload payload)
         {
-            if (!IsServerInitialized || !_hasWeapon.Value || _structure == null || !_structure.IsAlive)
+            if (!IsServerInitialized || !_hasWeapon.Value || _structure == null || !_structure.IsAlive || !_structure.IsConstructed)
             {
                 return false;
             }
@@ -211,7 +211,7 @@ namespace Game.Gameplay
 
         public void RefreshVisuals()
         {
-            if (!_hasWeapon.Value)
+            if (!_hasWeapon.Value || (_structure != null && !_structure.IsConstructed))
             {
                 if (_barrelPivot != null) _barrelPivot.gameObject.SetActive(false);
                 if (_cooldownBarVisual != null) _cooldownBarVisual.gameObject.SetActive(false);
@@ -275,7 +275,7 @@ namespace Game.Gameplay
 
             BallisticProjectile projectile = Instantiate(prefab, new Vector3(muzzle.x, muzzle.y, 0f), Quaternion.identity);
             projectile.name = $"Projectile_{_structure.Team}_{_shotsFiredServer}";
-            ServerManager.Spawn(projectile.NetworkObject);
+            ServerManager.Spawn(projectile.NetworkObject, null, gameObject.scene);
             projectile.InitializeServer(
                 _structure.Team,
                 sourceSeatId,

@@ -9,27 +9,19 @@ using UnityEngine;
 namespace Game.Gameplay
 {
     [RequireComponent(typeof(AirshipMovement), typeof(AirshipDockingController))]
-    public sealed class AirshipController : NetworkBehaviour, IDamageable
+    public sealed class AirshipController : NetworkBehaviour
     {
         [SerializeField] private AirshipMovement _movement;
         [SerializeField] private AirshipDockingController _docking;
         [SerializeField] private SpriteRenderer _bodyRenderer;
         [SerializeField] private SpriteRenderer _dockIndicatorRenderer;
-        [SerializeField] private float _defaultMaxHealth = 100f;
-        [SerializeField] private float _respawnDelaySeconds = 3f;
 
         private readonly SyncVar<byte> _seatId = new();
         private readonly SyncVar<TeamId> _teamId = new();
         private readonly SyncVar<AirshipCarryState> _carryState = new(AirshipCarryState.Empty);
-        private readonly SyncVar<float> _currentHealth = new(100f);
-        private readonly SyncVar<float> _maxHealth = new(100f);
-        private readonly SyncVar<bool> _isDowned = new(false);
 
         private MatchContext _context;
         private AirshipPlacementGhostVisual _ghostVisual;
-        private WorldHealthBarVisual _healthBarVisual;
-        private Vector3 _spawnPosition;
-        private float _respawnTimer;
         private int _lastManualFireTick = -100;
         private Vector2 _lastMouseAimScreenPos;
         private readonly WeaponFireInputGate _weaponFireGate = new();
@@ -38,10 +30,6 @@ namespace Game.Gameplay
 
         public byte SeatId => _seatId.Value;
         public TeamId Team => _teamId.Value;
-        public float CurrentHealth => _currentHealth.Value;
-        public float MaxHealth => _maxHealth.Value;
-        public bool IsAlive => !_isDowned.Value && _currentHealth.Value > 0f;
-        public bool IsDowned => _isDowned.Value;
         public AirshipMovement Movement => _movement;
         public AirshipDockingController Docking => _docking;
         public AirshipDockMode DockMode => _docking != null ? _docking.State.Mode : AirshipDockMode.Flying;
@@ -49,8 +37,6 @@ namespace Game.Gameplay
         public bool IsCarrying => _carryState.Value.IsCarrying;
 
         public event Action<AirshipCarryState> CarryStateChanged;
-        public event Action<float, float> HealthChanged;
-        public event Action<AirshipController> AirshipDownedServer;
 
         private void Awake()
         {
@@ -61,9 +47,6 @@ namespace Game.Gameplay
             _seatId.OnChange += HandleIdentityChanged;
             _teamId.OnChange += HandleTeamChanged;
             _carryState.OnChange += HandleCarryStateChanged;
-            _currentHealth.OnChange += HandleHealthChanged;
-            _maxHealth.OnChange += HandleHealthChanged;
-            _isDowned.OnChange += HandleDownedChanged;
             if (_docking != null)
             {
                 _docking.DockStateChanged += HandleDockStateChanged;
@@ -75,27 +58,16 @@ namespace Game.Gameplay
             _seatId.OnChange -= HandleIdentityChanged;
             _teamId.OnChange -= HandleTeamChanged;
             _carryState.OnChange -= HandleCarryStateChanged;
-            _currentHealth.OnChange -= HandleHealthChanged;
-            _maxHealth.OnChange -= HandleHealthChanged;
-            _isDowned.OnChange -= HandleDownedChanged;
             if (_docking != null)
             {
                 _docking.DockStateChanged -= HandleDockStateChanged;
             }
         }
 
-        public override void OnStartServer()
-        {
-            base.OnStartServer();
-            if (TimeManager != null)
-            {
-                TimeManager.OnTick += HandleServerTick;
-            }
-        }
-
         public override void OnStartClient()
         {
             base.OnStartClient();
+            ActiveArenaBootstrapRegistry.FindFor(NetworkManager)?.RegisterReplicatedAirship(this);
             EnsureGhostVisual();
             SubscribeClientTick(true);
             UpdateVisuals();
@@ -103,6 +75,7 @@ namespace Game.Gameplay
 
         public override void OnStopClient()
         {
+            ActiveArenaBootstrapRegistry.FindFor(NetworkManager)?.UnregisterReplicatedAirship(this);
             SubscribeClientTick(false);
             base.OnStopClient();
         }
@@ -115,11 +88,6 @@ namespace Game.Gameplay
 
         public override void OnStopServer()
         {
-            if (TimeManager != null)
-            {
-                TimeManager.OnTick -= HandleServerTick;
-            }
-
             if (IsServerInitialized && _carryState.Value.IsCarrying && _carryState.Value.ReservedGold > 0)
             {
                 _context?.Economy?.RefundGoldServer(_carryState.Value.SeatId, _carryState.Value.ReservedGold);
@@ -138,71 +106,13 @@ namespace Game.Gameplay
             }
 
             _context = context;
-            _spawnPosition = transform.position;
             _seatId.Value = seatId;
             _teamId.Value = teamId;
             _carryState.Value = AirshipCarryState.Empty;
-            _maxHealth.Value = Mathf.Max(1f, _defaultMaxHealth);
-            _currentHealth.Value = _maxHealth.Value;
-            _isDowned.Value = false;
-            _respawnTimer = 0f;
             _movement?.InitializeServer(context, playableAirspace);
             _docking?.InitializeServer(seatId, teamId, context);
             _context?.RegisterAirship(this);
             UpdateVisuals();
-        }
-
-        public void ApplyDamageServer(in DamageInfo damage)
-        {
-            if (!IsServerInitialized || !IsAlive || damage.Amount <= 0f)
-            {
-                return;
-            }
-
-            _currentHealth.Value = Mathf.Max(0f, _currentHealth.Value - damage.Amount);
-            if (_currentHealth.Value <= 0f)
-            {
-                _isDowned.Value = true;
-                _respawnTimer = Mathf.Max(0.25f, _respawnDelaySeconds);
-                _docking?.ForceUndockServer();
-
-                if (_carryState.Value.IsCarrying)
-                {
-                    if (_carryState.Value.ReservedGold > 0)
-                    {
-                        _context?.Economy?.RefundGoldServer(_carryState.Value.SeatId, _carryState.Value.ReservedGold);
-                    }
-
-                    ClearCarryStateServer();
-                }
-
-                AirshipDownedServer?.Invoke(this);
-            }
-
-            UpdateVisuals();
-        }
-
-        private void HandleServerTick()
-        {
-            if (!IsServerInitialized || !_isDowned.Value)
-            {
-                return;
-            }
-
-            if (_context != null && _context.CanPilotAirships != null && !_context.CanPilotAirships())
-            {
-                return;
-            }
-
-            float dt = TimeManager != null ? (float)TimeManager.TickDelta : (1f / 30f);
-            _respawnTimer -= dt;
-            if (_respawnTimer <= 0f)
-            {
-                _isDowned.Value = false;
-                _currentHealth.Value = _maxHealth.Value;
-                transform.position = _spawnPosition;
-                UpdateVisuals();
-            }
         }
 
         public void SetCarryStateServer(AirshipCarryState state)
@@ -276,11 +186,6 @@ namespace Game.Gameplay
             }
 
             PlayerInputSnapshot input = channel.ConsumeTickSnapshot();
-            if (!IsAlive)
-            {
-                _movement?.SubmitMoveInput(Vector2.zero);
-                return;
-            }
 
             bool isDockedAndNotCarrying = _docking != null && _docking.IsDocked && !_carryState.Value.IsCarrying;
             if (isDockedAndNotCarrying)
@@ -449,27 +354,6 @@ namespace Game.Gameplay
             UpdateVisuals();
         }
 
-        private void HandleHealthChanged(float prev, float next, bool asServer)
-        {
-            if (asServer && (IsHostInitialized || (NetworkManager != null && NetworkManager.IsClientStarted)))
-            {
-                return;
-            }
-
-            UpdateHealthBarVisual();
-            HealthChanged?.Invoke(_currentHealth.Value, _maxHealth.Value);
-        }
-
-        private void HandleDownedChanged(bool prev, bool next, bool asServer)
-        {
-            if (asServer && (IsHostInitialized || (NetworkManager != null && NetworkManager.IsClientStarted)))
-            {
-                return;
-            }
-
-            UpdateVisuals();
-        }
-
         private void UpdateVisuals()
         {
             if (_bodyRenderer != null)
@@ -477,40 +361,15 @@ namespace Game.Gameplay
                 Color baseColor = _teamId.Value == TeamId.TeamA
                     ? new Color(0.28f, 0.72f, 1f)
                     : (_teamId.Value == TeamId.TeamB ? new Color(1f, 0.42f, 0.36f) : Color.white);
-                if (_isDowned.Value)
-                {
-                    baseColor.a = 0.25f;
-                }
-
                 _bodyRenderer.color = baseColor;
             }
 
             if (_dockIndicatorRenderer != null)
             {
-                bool docked = IsAlive && _docking != null && _docking.IsDocked;
+                bool docked = _docking != null && _docking.IsDocked;
                 _dockIndicatorRenderer.enabled = docked;
                 _dockIndicatorRenderer.color = new Color(1f, 0.9f, 0.25f, 0.9f);
             }
-
-            UpdateHealthBarVisual();
-        }
-
-        private void UpdateHealthBarVisual()
-        {
-            bool damaged = IsAlive && _maxHealth.Value > 0.01f && _currentHealth.Value < _maxHealth.Value - 0.01f;
-            if (!damaged && _healthBarVisual == null)
-            {
-                return;
-            }
-
-            if (_healthBarVisual == null)
-            {
-                var barGo = new GameObject("AirshipHealthBar");
-                barGo.transform.SetParent(transform, false);
-                _healthBarVisual = barGo.AddComponent<WorldHealthBarVisual>();
-            }
-
-            _healthBarVisual.SetHealth(_currentHealth.Value, _maxHealth.Value, yOffset: 0.75f, width: 1.4f, alwaysShow: false);
         }
     }
 }

@@ -31,10 +31,60 @@ namespace Game.Gameplay
         public Vector2 CurrentAnchorPosition => _dockState.Value.AnchorPosition;
         public float DockRange => _dockRange;
 
-        public float TargetWeaponCooldownRemaining =>
-            IsDocked && _currentTarget?.UnityObject is StructureBase structure && structure.WeaponController != null
-                ? structure.WeaponController.CooldownRemaining
-                : 0f;
+        public float TargetWeaponCooldownRemaining
+        {
+            get
+            {
+                StructureBase structure = ResolveDockedStructure();
+                return structure != null && structure.WeaponController != null
+                    ? structure.WeaponController.CooldownRemaining
+                    : 0f;
+            }
+        }
+
+        public bool IsDockedTargetConstructed
+        {
+            get
+            {
+                StructureBase structure = ResolveDockedStructure();
+                return structure == null || structure.IsConstructed;
+            }
+        }
+
+        public float TargetBuildProgress
+        {
+            get
+            {
+                StructureBase structure = ResolveDockedStructure();
+                return structure != null ? structure.BuildProgress : 1f;
+            }
+        }
+
+        private StructureBase ResolveDockedStructure()
+        {
+            if (!IsDocked)
+            {
+                return null;
+            }
+
+            if (_currentTarget?.UnityObject is StructureBase serverStructure)
+            {
+                return serverStructure;
+            }
+
+            int targetObjId = _dockState.Value.TargetNetworkObjectId;
+            if (targetObjId >= 0
+                && ClientManager != null
+                && ClientManager.Objects != null
+                && ClientManager.Objects.Spawned.TryGetValue(targetObjId, out NetworkObject nob)
+                && nob != null
+                && nob.TryGetComponent(out StructureBase clientStructure))
+            {
+                return clientStructure;
+            }
+
+            return null;
+        }
 
         public event Action<AirshipDockState> DockStateChanged;
 
@@ -215,7 +265,7 @@ namespace Game.Gameplay
                 return;
             }
 
-            if (TryGetComponent(out AirshipController airship) && (!airship.IsAlive || airship.IsCarrying))
+            if (TryGetComponent(out AirshipController airship) && airship.IsCarrying)
             {
                 return;
             }
@@ -309,11 +359,6 @@ namespace Game.Gameplay
                 return;
             }
 
-            if (TryGetComponent(out AirshipController airship) && !airship.IsAlive)
-            {
-                return;
-            }
-
             if (_context != null && _context.CanPilotAirships != null && !_context.CanPilotAirships())
             {
                 return;
@@ -359,7 +404,7 @@ namespace Game.Gameplay
                 return;
             }
 
-            if (TryGetComponent(out AirshipController airship) && (!airship.IsAlive || airship.IsCarrying))
+            if (TryGetComponent(out AirshipController airship) && airship.IsCarrying)
             {
                 return;
             }

@@ -24,6 +24,34 @@ namespace PirateGame.Networking
         void Stop();
     }
 
+    public interface IActiveOnlineSessionBridge
+    {
+        INetworkSession Session { get; }
+        object NetworkManagerObject { get; }
+        bool IsActiveOnlineSession { get; }
+        void LeaveAndDestroyForMenuReturn();
+    }
+
+    public static class ActiveOnlineSessionRegistry
+    {
+        public static IActiveOnlineSessionBridge Current { get; private set; }
+
+        public static void Register(IActiveOnlineSessionBridge bridge)
+        {
+            if (bridge != null) Current = bridge;
+        }
+
+        public static void Unregister(IActiveOnlineSessionBridge bridge)
+        {
+            if (ReferenceEquals(Current, bridge)) Current = null;
+        }
+
+        public static void Clear()
+        {
+            Current = null;
+        }
+    }
+
     public readonly struct LobbyMember
     {
         public readonly ulong Id;
@@ -75,6 +103,20 @@ namespace PirateGame.Networking
         public static bool CanAdmitLocalLoopback(string address, int alreadyAccepted)
         {
             return alreadyAccepted == 0 && IsLoopbackAddress(address);
+        }
+
+        public static bool CanStartOnlineMatch(
+            bool isHost,
+            bool inLobby,
+            bool isAuthenticated,
+            int lobbyMemberCount,
+            int connectedServerClients)
+        {
+            return isHost
+                && inLobby
+                && isAuthenticated
+                && lobbyMemberCount >= PlayerLimit
+                && connectedServerClients >= PlayerLimit;
         }
     }
 }

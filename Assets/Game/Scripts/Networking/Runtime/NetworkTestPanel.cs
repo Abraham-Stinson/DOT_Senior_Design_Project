@@ -11,17 +11,84 @@ namespace PirateGame.Networking
         private string inputError = "";
         private Vector2 scroll;
 
+        private void Awake()
+        {
+            if (coordinator == null) coordinator = GetComponent<OnlineSessionCoordinator>();
+            if (probe == null) probe = GetComponent<NetworkProbe>();
+        }
+
         private void OnGUI()
         {
-            if (coordinator == null) return;
+            if (coordinator == null
+                || coordinator.IsInMatchScene
+                || !string.Equals(UnityEngine.SceneManagement.SceneManager.GetActiveScene().name, "NetworkTest", System.StringComparison.Ordinal))
+                return;
             var steam = coordinator.Steam;
             var lobby = coordinator.Lobby;
             var session = coordinator.Session;
             GUILayout.BeginArea(new Rect(16, 16, Mathf.Min(760, Screen.width - 32), Screen.height - 32), GUI.skin.box);
-            scroll = GUILayout.BeginScrollView(scroll);
+
+            GUILayout.BeginHorizontal();
+            GUILayout.BeginVertical();
             GUILayout.Label("Untitled Pirate Game | Network Test (M0-A)");
             GUILayout.Label("Teknik bağlantı testi · 2 oyuncu · Steam listen server");
-            GUILayout.Space(8);
+            GUILayout.EndVertical();
+            if (Application.CanStreamedLevelBeLoaded("MainMenu")
+                && GUILayout.Button("Ana Menüye Dön", GUILayout.Width(150), GUILayout.Height(34)))
+            {
+                coordinator.LeaveLobby();
+                UnityEngine.SceneManagement.SceneManager.LoadScene("MainMenu");
+            }
+            GUILayout.EndHorizontal();
+
+            if (lobby != null && lobby.InLobby)
+            {
+                GUILayout.BeginVertical(GUI.skin.box);
+                if (lobby.IsOwner)
+                {
+                    bool arenaLoadable = Application.CanStreamedLevelBeLoaded(OnlineSessionCoordinator.DefaultArenaSceneName);
+                    if (!arenaLoadable)
+                    {
+                        GUI.color = new Color(1f, 0.65f, 0.5f);
+                        GUILayout.Label("CannonBrawlArena bu build'e dahil değil! Tools > Game > Build Windows (MainMenu + Online + Arena) ile build alın.");
+                        GUI.color = Color.white;
+                    }
+                    else if (coordinator.CanStartMatch)
+                    {
+                        GUI.color = new Color(0.55f, 1f, 0.65f);
+                        GUILayout.Label("HAZIR (2/2) — Online PvP maçını başlatabilirsiniz.");
+                        GUI.color = Color.white;
+                    }
+                    else
+                    {
+                        GUILayout.Label($"Rakip bağlantısı bekleniyor (Lobby: {lobby.Members.Count}/2 · FishNet: {session.ConnectedClients}/2 · Host Hazır: {lobby.HostReady})...");
+                    }
+
+                    GUI.enabled = arenaLoadable && coordinator.CanStartMatch && !coordinator.IsStartingMatch;
+                    GUI.backgroundColor = new Color(0.24f, 0.72f, 0.40f, 1f);
+                    if (GUILayout.Button("MAÇI BAŞLAT (CannonBrawlArena)", GUILayout.Height(38)))
+                    {
+                        coordinator.TryStartOnlineMatch();
+                    }
+                    GUI.backgroundColor = Color.white;
+                    GUI.enabled = true;
+                }
+                else
+                {
+                    GUILayout.Label(session.IsAuthenticated
+                        ? "Host'a bağlandı. Host 'MAÇI BAŞLAT' butonuna bastığında CannonBrawlArena otomatik açılacak..."
+                        : "Host'a FishNet bağlantısı kuruluyor...");
+                }
+
+                if (!string.IsNullOrEmpty(coordinator.LastError))
+                {
+                    Error(coordinator.LastError);
+                }
+                GUILayout.EndVertical();
+            }
+
+            scroll = GUILayout.BeginScrollView(scroll);
+            GUILayout.Space(6);
             GUILayout.Label("Steam: " + steam.Status);
             GUILayout.Label($"Kullanıcı: {steam.UserName} | Steam ID: {steam.UserId}");
             GUILayout.Label("App ID: " + (steam.Settings == null ? "Eksik" : steam.Settings.AppId.ToString()));
@@ -64,18 +131,9 @@ namespace PirateGame.Networking
             GUILayout.Label(probe.LastResult);
             if (session.Role == SessionRole.Host)
                 GUILayout.Label("Host'un kendi ACK'sı yerel testtir. İki hesap doğrulaması için Uzak client sayacı artmalıdır.");
-            GUI.enabled = session.IsAuthenticated;
+            GUI.enabled = session != null && session.IsAuthenticated && probe != null;
             if (GUILayout.Button("Send Test Message")) probe.SendProbe();
             GUI.enabled = true;
-            if (Application.CanStreamedLevelBeLoaded("MainMenu"))
-            {
-                GUILayout.Space(6);
-                if (GUILayout.Button("Ana Menüye Dön"))
-                {
-                    coordinator.LeaveLobby();
-                    UnityEngine.SceneManagement.SceneManager.LoadScene("MainMenu");
-                }
-            }
             GUILayout.Space(8);
             Error(steam.LastError); Error(lobby?.LastError); Error(session.LastError); Error(coordinator.LastError); Error(inputError);
             GUILayout.EndScrollView();

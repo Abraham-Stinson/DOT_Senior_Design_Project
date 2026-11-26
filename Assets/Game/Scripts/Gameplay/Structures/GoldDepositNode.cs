@@ -89,7 +89,15 @@ namespace Game.Gameplay
         {
             base.OnStartClient();
             ActiveGoldDepositsRegistry.Register(this);
+            ActiveArenaBootstrapRegistry.FindFor(NetworkManager)?.RegisterReplicatedGoldDeposit(this);
             UpdateVisuals();
+        }
+
+        public override void OnStopClient()
+        {
+            ActiveArenaBootstrapRegistry.FindFor(NetworkManager)?.UnregisterReplicatedGoldDeposit(this);
+            ActiveGoldDepositsRegistry.Unregister(this);
+            base.OnStopClient();
         }
 
         public override void OnStopServer()

@@ -42,36 +42,55 @@ namespace Game.UI
             GUILayout.BeginArea(new Rect(x, 16f, width, height), GUI.skin.box);
             _scrollPosition = GUILayout.BeginScrollView(_scrollPosition);
 
-            GUILayout.Label("CannonBrawlArena (M1.5 Savaş)");
-            GUILayout.Label($"Mod: {_bootstrap.ActiveMode} | Transport: {_bootstrap.TransportModeSummary}");
-            GUILayout.Label($"Oturum: {_bootstrap.SessionStateSummary} | Başlatıldı: {_bootstrap.IsMatchInitialized}");
+            GUILayout.Label("Savaş Alanı");
+
+            if (_bootstrap.IsSessionDisconnected)
+            {
+                GUILayout.BeginVertical(GUI.skin.box);
+                GUILayout.Label("Bağlantı Kesildi");
+                if (!string.IsNullOrEmpty(_bootstrap.LastError))
+                {
+                    GUILayout.Label(_bootstrap.LastError);
+                }
+                if (GUILayout.Button("Ana Menü"))
+                {
+                    GUIUtility.keyboardControl = 0;
+                    _bootstrap.ReturnToMainMenu();
+                }
+                GUILayout.EndVertical();
+            }
+            else if (!_bootstrap.IsMatchInitialized && _bootstrap.ActiveMode == MatchMode.OnlinePvP)
+            {
+                GUILayout.Label("Oyuncular bekleniyor...");
+            }
 
             if (_bootstrap.HasGameMode)
             {
-                GUILayout.Label($"Maç Fazı: {_bootstrap.CurrentPhase} | Yapı: {_bootstrap.BuiltStructureCount} | Boş Damar: {_bootstrap.AvailableGoldDepositCount}");
-
                 bool hasHqA = _bootstrap.TryGetHqHealth(TeamId.TeamA, out float hqACur, out float hqAMax);
                 bool hasHqB = _bootstrap.TryGetHqHealth(TeamId.TeamB, out float hqBCur, out float hqBMax);
                 if (hasHqA || hasHqB)
                 {
-                    string hqAText = hasHqA ? $"{hqACur:F0}/{hqAMax:F0}" : "YOK EDİLDİ";
-                    string hqBText = hasHqB ? $"{hqBCur:F0}/{hqBMax:F0}" : "YOK EDİLDİ";
-                    GUILayout.Label($"HQ Can · TeamA: {hqAText}  |  TeamB: {hqBText}");
+                    string hqAText = hasHqA ? $"{hqACur:F0}/{hqAMax:F0}" : "Yıkıldı";
+                    string hqBText = hasHqB ? $"{hqBCur:F0}/{hqBMax:F0}" : "Yıkıldı";
+                    GUILayout.Label($"Mavi Üs: {hqAText}  |  Kırmızı Üs: {hqBText}");
                 }
             }
 
             if (_bootstrap.CurrentPhase == MatchPhase.Ended)
             {
                 GUILayout.BeginVertical(GUI.skin.box);
-                string winnerLabel = _bootstrap.WinnerTeam == TeamId.Neutral
-                    ? "MAÇ SONUCU: BERABERE"
-                    : $"MAÇ BİTTİ — KAZANAN: {_bootstrap.WinnerTeam}";
+                string winnerLabel = _bootstrap.WinnerTeam switch
+                {
+                    TeamId.TeamA => "ZAFER — MAVİ TAKIM",
+                    TeamId.TeamB => "ZAFER — KIRMIZI TAKIM",
+                    _ => "BERABERE"
+                };
                 GUILayout.Label(winnerLabel);
                 if (!string.IsNullOrEmpty(_bootstrap.MatchOutcomeReason))
                 {
                     GUILayout.Label(_bootstrap.MatchOutcomeReason);
                 }
-                if (GUILayout.Button("Ana Menüye Dön (Maç Sonu)"))
+                if (GUILayout.Button("Ana Menü"))
                 {
                     GUIUtility.keyboardControl = 0;
                     _bootstrap.ReturnToMainMenu();
@@ -81,8 +100,8 @@ namespace Game.UI
             else if (_bootstrap.CurrentPhase == MatchPhase.Playing)
             {
                 GUILayout.Label(_bootstrap.ActiveMode == MatchMode.LocalPvP
-                    ? "P1: WASD(Uç/A-D Seç/Nişan) + E(Kenetlen/Ayrıl) + Space(Onayla/Ateş/Bırak) + Q(İptal)\nP2: Oklar(Uç/Sol-Sağ Seç/Nişan) + Enter(Kenetlen/Ayrıl) + RCtrl/Num0(Onayla/Ateş/Bırak) + Backspace"
-                    : "Kontroller · WASD/Oklar(Uç/Seç) + E/F(Kenetlen/Ayrıl) + Space/Tık(Onayla/Ateş/Bırak) + Q/SağTık(İptal)");
+                    ? "P1: WASD · E Kenetlen · Space Onay/Ateş · Q İptal\nP2: Oklar · Enter Kenetlen · RCtrl Onay/Ateş · Backspace İptal"
+                    : "WASD/Oklar Hareket · E Kenetlen · Space/Tık Onay/Ateş · Q/Sağ Tık İptal");
             }
 
             int seatCount = _bootstrap.SeatCount;
@@ -90,7 +109,6 @@ namespace Game.UI
             {
                 CardCatalogSO catalog = _bootstrap.CardCatalog;
                 bool canBuild = _bootstrap.CurrentPhase == MatchPhase.Playing;
-                GUILayout.Label($"Koltuk Sayısı: {seatCount}");
 
                 for (int i = 0; i < seatCount; i++)
                 {
@@ -98,33 +116,25 @@ namespace Game.UI
                             i,
                             out byte seatId,
                             out TeamId team,
-                            out SeatControlType controlType,
+                            out SeatControlType _,
                             out int gold,
                             out float incomePerSecond))
                     {
                         continue;
                     }
 
-                    GUILayout.BeginVertical(GUI.skin.box);
-                    GUILayout.Label($"Seat {seatId}: {team} ({controlType}) | Altın: {gold} (+{incomePerSecond:F1}/sn)");
+                    bool isLocalSeat = _bootstrap.IsSeatLocallyOwned(seatId);
+                    string seatSuffix = _bootstrap.ActiveMode == MatchMode.OnlinePvP
+                        ? (isLocalSeat ? " (Sen)" : " (Rakip)")
+                        : (seatId == 0 ? " (P1)" : " (P2)");
 
-                    if (_bootstrap.TryGetTeamTerritorySummary(team, out int zoneCount, out float minX, out float maxX))
+                    GUILayout.BeginVertical(GUI.skin.box);
+                    GUILayout.Label($"{FormatTeamName(team)}{seatSuffix}  ·  {gold}g (+{incomePerSecond:F0}/sn)");
+
+                    if (_bootstrap.TryGetTeamTerritorySummary(team, out int zoneCount, out float _, out float _))
                     {
                         int teamStructures = _bootstrap.GetStructureCountForTeam(team);
-                        GUILayout.Label($"  Bölge: {zoneCount} zon [X: {minX:F1}..{maxX:F1}] | Yapı: {teamStructures}");
-                    }
-
-                    if (_bootstrap.TryGetAirshipInfo(seatId, out Vector2 shipPos, out AirshipDockMode dockMode))
-                    {
-                        string hpText = string.Empty;
-                        if (_bootstrap.TryGetAirshipHealth(seatId, out float shipHp, out float shipMaxHp, out bool isDowned))
-                        {
-                            hpText = isDowned
-                                ? " | DÜŞTÜ (Yeniden Doğuyor)"
-                                : $" | Can: {shipHp:F0}/{shipMaxHp:F0}";
-                        }
-
-                        GUILayout.Label($"  Airship: ({shipPos.x:F1}, {shipPos.y:F1}) · {dockMode}{hpText}");
+                        GUILayout.Label($"  Yapı: {teamStructures}  ·  Bölge: {zoneCount}");
                     }
 
                     bool isCarrying = _bootstrap.TryGetAirshipCarryInfo(
@@ -145,6 +155,8 @@ namespace Game.UI
                         out bool _,
                         out bool _,
                         out float _,
+                        out bool targetIsConstructed,
+                        out float targetBuildProgress,
                         out Vector2 _);
 
                     if (isCarrying)
@@ -152,12 +164,12 @@ namespace Game.UI
                         string carriedName = ResolveCardName(carriedCardId, catalog);
                         GUILayout.BeginHorizontal();
                         GUILayout.Label($"  Taşınıyor: {carriedName} ({reservedGold}g)");
-                        if (canBuild && GUILayout.Button("Yerleştir", GUILayout.Width(80f)))
+                        if (canBuild && isLocalSeat && GUILayout.Button("Kur", GUILayout.Width(64f)))
                         {
                             GUIUtility.keyboardControl = 0;
                             _bootstrap.RequestDeployCarried(seatId);
                         }
-                        if (canBuild && GUILayout.Button($"İptal (+{reservedGold}g)", GUILayout.Width(96f)))
+                        if (canBuild && isLocalSeat && GUILayout.Button($"İptal (+{reservedGold}g)", GUILayout.Width(96f)))
                         {
                             GUIUtility.keyboardControl = 0;
                             _bootstrap.RequestCancelCarry(seatId);
@@ -166,11 +178,13 @@ namespace Game.UI
                     }
                     else if (isDocked)
                     {
-                        GUILayout.Label($"  Kenetli ({subMode}) · Panel yapının üzerinde açık.");
+                        GUILayout.Label(!targetIsConstructed
+                            ? $"  Kenetli · İnşa: %{Mathf.Clamp(Mathf.RoundToInt(targetBuildProgress * 100f), 0, 99)}"
+                            : "  Kenetli · Yapı menüsü açık");
                     }
-                    else
+                    else if (isLocalSeat)
                     {
-                        GUILayout.Label("  Kart seçmek ve taşımak için Base (HQ)'ya kenetlen (E / Enter).");
+                        GUILayout.Label("  Kart almak için Üs'e kenetlen.");
                     }
 
                     if (_bootstrap.TryCopyActiveLoadout(seatId, _loadoutBuffer))
@@ -181,18 +195,15 @@ namespace Game.UI
                         DrawDeckPreviewRow(gold, isCarrying ? carriedSlot : -1, highlightedSlot, _loadoutBuffer, catalog);
                     }
 
-                    if (_bootstrap.TryGetLastBuildFeedback(seatId, out BuildFeedback feedback))
+                    if (_bootstrap.TryGetLastBuildFeedback(seatId, out BuildFeedback feedback) && !feedback.Accepted)
                     {
                         string cardTitle = ResolveCardName(feedback.CardId, catalog);
-                        string outcomeText = feedback.Accepted
-                            ? $"Onay ({cardTitle} @ {feedback.Position.x:F1}, {feedback.Position.y:F1})"
-                            : $"Red ({cardTitle}): {feedback.RejectReason}";
-                        GUILayout.Label("  " + outcomeText);
+                        GUILayout.Label($"  {cardTitle}: {FormatBuildRejectReason(feedback.RejectReason)}");
                     }
 
                     if (_bootstrap.TryGetLastActionNotice(seatId, out string actionNotice) && !string.IsNullOrEmpty(actionNotice))
                     {
-                        GUILayout.Label("  Son İşlem: " + actionNotice);
+                        GUILayout.Label("  " + actionNotice);
                     }
 
                     GUILayout.EndVertical();
@@ -201,17 +212,45 @@ namespace Game.UI
 
             if (!string.IsNullOrEmpty(_bootstrap.LastError))
             {
-                GUILayout.Label("Hata: " + _bootstrap.LastError);
+                GUILayout.Label("Uyarı: " + _bootstrap.LastError);
             }
 
             GUILayout.Space(6);
-            if (GUILayout.Button("Ana Menüye Dön"))
+            if (GUILayout.Button("Ana Menü"))
             {
                 _bootstrap.ReturnToMainMenu();
             }
 
             GUILayout.EndScrollView();
             GUILayout.EndArea();
+        }
+
+        private static string FormatTeamName(TeamId team)
+        {
+            return team switch
+            {
+                TeamId.TeamA => "Mavi",
+                TeamId.TeamB => "Kırmızı",
+                _ => "Tarafsız"
+            };
+        }
+
+        private static string FormatBuildRejectReason(BuildRejectReason reason)
+        {
+            return reason switch
+            {
+                BuildRejectReason.InsufficientGold => "Altın yetersiz",
+                BuildRejectReason.OutsideTerritory => "Bölge dışında",
+                BuildRejectReason.OutOfBuildRange => "Menzil dışında",
+                BuildRejectReason.TooFarFromGround => "Yere daha yakın olmalısın",
+                BuildRejectReason.InvalidTerrain => "Zemin uygun değil",
+                BuildRejectReason.OverlappingStructure => "Burada başka yapı var",
+                BuildRejectReason.RequiresGoldDeposit => "Altın damarı gerekli",
+                BuildRejectReason.DepositOccupied => "Bu damar dolu",
+                BuildRejectReason.MustDockAtBase => "Üs'e kenetlenmelisin",
+                BuildRejectReason.OnCooldown => "Biraz bekle",
+                _ => "Kurulamadı"
+            };
         }
 
         private static void DrawDeckPreviewRow(
@@ -236,11 +275,11 @@ namespace Game.UI
 
                 string shortName = hasCard ? Abbreviate(card.DisplayName) : $"#{vm.CardId}";
                 string prefix = isCarriedSlot
-                    ? "TAŞI*"
-                    : (isSelectedSlot ? $">S{vm.SlotIndex}<" : (vm.IsLockedSlotZero ? "S0*" : $"S{vm.SlotIndex}"));
-                string label = hasCard ? $"{prefix}\n{shortName}\n({cost}g)" : $"{prefix}\n{shortName}";
+                    ? "ELDE"
+                    : (isSelectedSlot ? $"[{vm.SlotIndex + 1}]" : $"{vm.SlotIndex + 1}.");
+                string label = hasCard ? $"{prefix} {shortName}\n{cost}g" : $"{prefix} {shortName}";
 
-                GUILayout.Box(label, GUILayout.Height(46f), GUILayout.ExpandWidth(true));
+                GUILayout.Box(label, GUILayout.Height(42f), GUILayout.ExpandWidth(true));
             }
 
             GUILayout.EndHorizontal();

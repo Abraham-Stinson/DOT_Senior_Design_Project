@@ -15,7 +15,6 @@ namespace Game.Gameplay
     {
         [SerializeField] private SpriteRenderer _bodyRenderer;
         [SerializeField] private TrailRenderer _trailRenderer;
-        [SerializeField] private float _airshipHitRadius = 0.85f;
 
         private readonly SyncVar<TeamId> _sourceTeam = new();
         private readonly SyncVar<float> _splashRadius = new();
@@ -188,25 +187,6 @@ namespace Game.Gameplay
                     }
                 }
 
-                IReadOnlyList<AirshipController> airships = _context.Airships;
-                for (int i = 0; i < airships.Count; i++)
-                {
-                    AirshipController ship = airships[i];
-                    if (ship == null || !ship.IsAlive || ship.Team == TeamId.Neutral || ship.Team == _sourceTeam.Value)
-                    {
-                        continue;
-                    }
-
-                    if (Ballistics2D.TrySegmentIntersectsCircle(prevPos, nextPos, ship.transform.position, _airshipHitRadius, out float t, out Vector2 pt)
-                        && t < bestT)
-                    {
-                        bestT = t;
-                        hitPoint = pt;
-                        directTarget = ship;
-                        hitAnything = true;
-                    }
-                }
-
                 if (_context.Terrain != null)
                 {
                     float surfaceY = _context.Terrain.SampleGroundSurfaceY(nextPos.x);
@@ -270,32 +250,6 @@ namespace Game.Gameplay
                     if (amount > 0.01f)
                     {
                         damageBatch.Add((damageable, amount));
-                    }
-                }
-
-                IReadOnlyList<AirshipController> airships = _context.Airships;
-                for (int i = 0; i < airships.Count; i++)
-                {
-                    AirshipController ship = airships[i];
-                    if (ship == null || !ship.IsAlive || ship.Team == TeamId.Neutral || ship.Team == _sourceTeam.Value)
-                    {
-                        continue;
-                    }
-
-                    float amount;
-                    if (ReferenceEquals(ship, directTarget))
-                    {
-                        amount = _damage;
-                    }
-                    else
-                    {
-                        float dist = Mathf.Max(0f, Vector2.Distance(hitPoint, ship.transform.position) - _airshipHitRadius * 0.5f);
-                        amount = Ballistics2D.ComputeSplashDamage(_damage, dist, splash);
-                    }
-
-                    if (amount > 0.01f)
-                    {
-                        damageBatch.Add((ship, amount));
                     }
                 }
             }

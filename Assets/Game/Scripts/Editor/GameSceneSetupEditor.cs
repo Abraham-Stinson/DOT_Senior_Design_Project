@@ -46,11 +46,73 @@ namespace Game.Editor
 
             CreateMainMenuScene();
             CreateArenaScene(greyboxSprite);
+            EnsureNetworkFoundationGameplayPrefabs();
             UpdateBuildSettings();
 
             AssetDatabase.SaveAssets();
             AssetDatabase.Refresh();
             Debug.Log("[M1-1] MainMenu ve CannonBrawlArena sahneleri ile M1-1 prefab kurulumu tamamlandı.");
+        }
+
+        [MenuItem("Tools/Game/Build Windows (MainMenu + Online + Arena)")]
+        public static void BuildWindowsOnlinePvP()
+        {
+            SetupAllScenesAndPrefabs();
+            var buildScenes = new List<string>
+            {
+                MainMenuScenePath,
+                ArenaScenePath
+            };
+            if (AssetDatabase.LoadAssetAtPath<SceneAsset>(NetworkTestScenePath) != null)
+            {
+                buildScenes.Add(NetworkTestScenePath);
+            }
+
+            string output = Path.GetFullPath("Builds/WindowsOnlinePvP/Untitled Pirate Game.exe");
+            Directory.CreateDirectory(Path.GetDirectoryName(output));
+            UnityEditor.Build.Reporting.BuildReport report = BuildPipeline.BuildPlayer(new BuildPlayerOptions
+            {
+                scenes = buildScenes.ToArray(),
+                locationPathName = output,
+                target = BuildTarget.StandaloneWindows64,
+                options = BuildOptions.Development
+            });
+            if (report.summary.result != UnityEditor.Build.Reporting.BuildResult.Succeeded)
+            {
+                throw new System.Exception("Windows Online PvP build failed.");
+            }
+            Debug.Log("[Online PvP] Windows build succeeded: " + output);
+        }
+
+        private static void EnsureNetworkFoundationGameplayPrefabs()
+        {
+            const string foundationPrefabPath = "Assets/Game/Networking/Prefabs/NetworkFoundation.prefab";
+            GameObject prefabAsset = AssetDatabase.LoadAssetAtPath<GameObject>(foundationPrefabPath);
+            PrefabObjects gameplayPrefabs = AssetDatabase.LoadAssetAtPath<PrefabObjects>(M1SetupEditor.DefaultPrefabObjectsPath);
+            if (prefabAsset == null || gameplayPrefabs == null)
+            {
+                return;
+            }
+
+            GameObject root = PrefabUtility.LoadPrefabContents(foundationPrefabPath);
+            try
+            {
+                if (root.TryGetComponent(out NetworkManager nm))
+                {
+                    var so = new SerializedObject(nm);
+                    SerializedProperty prop = so.FindProperty("_spawnablePrefabs");
+                    if (prop != null && prop.objectReferenceValue != gameplayPrefabs)
+                    {
+                        prop.objectReferenceValue = gameplayPrefabs;
+                        so.ApplyModifiedPropertiesWithoutUndo();
+                        PrefabUtility.SaveAsPrefabAsset(root, foundationPrefabPath);
+                    }
+                }
+            }
+            finally
+            {
+                PrefabUtility.UnloadPrefabContents(root);
+            }
         }
 
         [MenuItem("Tools/Game/Open MainMenu Scene")]
@@ -178,12 +240,12 @@ namespace Game.Editor
                 layout.childForceExpandWidth = true;
                 layout.childForceExpandHeight = false;
 
-                CreateLabel("TitleText", panelGo.transform, font, "CANNON BRAWL — ARTILLERY STRATEGY", 24, FontStyle.Bold, Color.white, 44f);
-                CreateLabel("SubtitleText", panelGo.transform, font, "M1.1 Greybox · Öncelik 1: Local PvP  |  Öncelik 2: Steam Online", 14, FontStyle.Normal, new Color(0.75f, 0.82f, 0.92f), 28f);
+                CreateLabel("TitleText", panelGo.transform, font, "CANNON BRAWL", 28, FontStyle.Bold, Color.white, 46f);
+                CreateLabel("SubtitleText", panelGo.transform, font, "Hava Gemisi & Topçu Strateji", 15, FontStyle.Normal, new Color(0.75f, 0.82f, 0.92f), 28f);
 
-                Button localBtn = CreateButton("LocalPvPButton", panelGo.transform, font, "1. Local PvP (Aynı PC)", 64f, new Color(0.16f, 0.52f, 0.34f));
-                Button onlineBtn = CreateButton("OnlinePvPButton", panelGo.transform, font, "2. Online PvP (Steam / FishNet)", 64f, new Color(0.17f, 0.39f, 0.68f));
-                Button storyBtn = CreateButton("StoryWipButton", panelGo.transform, font, "3. Hikaye Modu (WIP — Yakında)", 54f, new Color(0.24f, 0.26f, 0.31f));
+                Button localBtn = CreateButton("LocalPvPButton", panelGo.transform, font, "Yerel Karşılaşma (2 Oyuncu)", 64f, new Color(0.16f, 0.52f, 0.34f));
+                Button onlineBtn = CreateButton("OnlinePvPButton", panelGo.transform, font, "Çevrimiçi Maç (Steam)", 64f, new Color(0.17f, 0.39f, 0.68f));
+                Button storyBtn = CreateButton("StoryWipButton", panelGo.transform, font, "Hikaye (Yakında)", 54f, new Color(0.24f, 0.26f, 0.31f));
                 storyBtn.interactable = false;
                 Button quitBtn = CreateButton("QuitButton", panelGo.transform, font, "Çıkış", 48f, new Color(0.45f, 0.2f, 0.22f));
 
@@ -260,16 +322,20 @@ namespace Game.Editor
                 layoutConfig.SetGoldDepositSpawns(new[] { goldTeamABase, goldTeamAForward, goldTeamBForward, goldTeamBBase });
 
                 var matchSystems = new GameObject("MatchSystems");
-                var netRoot = new GameObject("ArenaNetworkRoot");
-                netRoot.transform.SetParent(matchSystems.transform, false);
-                netRoot.SetActive(false);
+                var matchControllerGo = new GameObject("ArenaMatchController");
+                matchControllerGo.transform.SetParent(matchSystems.transform, false);
+                matchControllerGo.SetActive(false);
 
-                var steamTransport = netRoot.AddComponent<FishySteamworks.FishySteamworks>();
+                var localRig = new GameObject("ArenaLocalNetworkRig");
+                localRig.transform.SetParent(matchSystems.transform, false);
+                localRig.SetActive(false);
+
+                var steamTransport = localRig.AddComponent<FishySteamworks.FishySteamworks>();
                 SetBool(steamTransport, "_peerToPeer", true);
                 SetInt(steamTransport, "_maximumClients", SessionRules.PlayerLimit - 1);
                 SetInt(steamTransport, "_port", 0);
 
-                var tugboat = netRoot.AddComponent<Tugboat>();
+                var tugboat = localRig.AddComponent<Tugboat>();
                 SetStr(tugboat, "_ipv4BindAddress", "127.0.0.1");
                 SetStr(tugboat, "_ipv6BindAddress", "::1");
                 SetBool(tugboat, "_enableIpv6", false);
@@ -277,7 +343,7 @@ namespace Game.Editor
                 SetInt(tugboat, "_maximumClients", 1);
                 SetStr(tugboat, "_clientAddress", "127.0.0.1");
 
-                var multipass = netRoot.AddComponent<Multipass>();
+                var multipass = localRig.AddComponent<Multipass>();
                 multipass.GlobalServerActions = false;
                 var mpSo = new SerializedObject(multipass);
                 var transportsProp = mpSo.FindProperty("_transports");
@@ -286,31 +352,31 @@ namespace Game.Editor
                 transportsProp.GetArrayElementAtIndex(1).objectReferenceValue = tugboat;
                 mpSo.ApplyModifiedPropertiesWithoutUndo();
 
-                var transportManager = netRoot.AddComponent<TransportManager>();
+                var transportManager = localRig.AddComponent<TransportManager>();
                 transportManager.Transport = multipass;
 
-                var serverManager = netRoot.AddComponent<ServerManager>();
-                netRoot.AddComponent<ClientManager>();
-                var timeManager = netRoot.AddComponent<TimeManager>();
+                var serverManager = localRig.AddComponent<ServerManager>();
+                localRig.AddComponent<ClientManager>();
+                var timeManager = localRig.AddComponent<TimeManager>();
                 SetInt(timeManager, "_tickRate", 30);
 
-                var auth = netRoot.AddComponent<LobbyConnectionAuthenticator>();
+                var auth = localRig.AddComponent<LobbyConnectionAuthenticator>();
                 SetRef(serverManager, "_authenticator", auth);
                 SetBool(serverManager, "_startOnHeadless", false);
 
-                var networkManager = netRoot.AddComponent<NetworkManager>();
+                var networkManager = localRig.AddComponent<NetworkManager>();
                 SetBool(networkManager, "_dontDestroyOnLoad", false);
                 SetBool(networkManager, "_runInBackground", true);
                 var defaultPrefabs = AssetDatabase.LoadAssetAtPath<DefaultPrefabObjects>(M1SetupEditor.DefaultPrefabObjectsPath);
                 SetRef(networkManager, "_spawnablePrefabs", defaultPrefabs);
 
-                var session = netRoot.AddComponent<FishNetSession>();
+                var session = localRig.AddComponent<FishNetSession>();
                 SetRef(session, "manager", networkManager);
                 SetRef(session, "authenticator", auth);
 
-                var inputRouter = netRoot.AddComponent<PlayerInputRouter>();
+                var inputRouter = matchControllerGo.AddComponent<PlayerInputRouter>();
 
-                var bootstrap = netRoot.AddComponent<ArenaSessionBootstrap>();
+                var bootstrap = matchControllerGo.AddComponent<ArenaSessionBootstrap>();
                 var seatPrefab = AssetDatabase.LoadAssetAtPath<GameObject>(M1SetupEditor.PlayerSeatPrefabPath)?.GetComponent<PlayerSeatController>();
                 var modePrefab = AssetDatabase.LoadAssetAtPath<GameObject>(M1SetupEditor.GameModeControllerPrefabPath)?.GetComponent<GameModeController>();
                 var draftPrefab = AssetDatabase.LoadAssetAtPath<GameObject>(M1SetupEditor.DraftLoadoutControllerPrefabPath)?.GetComponent<DraftLoadoutController>();
@@ -323,6 +389,7 @@ namespace Game.Editor
                 var padPrefab = AssetDatabase.LoadAssetAtPath<GameObject>(M1SetupEditor.DockablePadPrefabPath)?.GetComponent<DockableAnchorNode>();
                 var projectilePrefab = AssetDatabase.LoadAssetAtPath<GameObject>(M1SetupEditor.BallisticProjectilePrefabPath)?.GetComponent<BallisticProjectile>();
                 var cardCatalog = AssetDatabase.LoadAssetAtPath<CardCatalogSO>(M1SetupEditor.CardCatalogAssetPath);
+                SetRef(bootstrap, "_localNetworkRig", localRig);
                 SetRef(bootstrap, "_networkSessionComponent", session);
                 SetRef(bootstrap, "_networkManager", networkManager);
                 SetRef(bootstrap, "_inputRouter", inputRouter);
@@ -340,16 +407,18 @@ namespace Game.Editor
                 SetRef(bootstrap, "_cardCatalog", cardCatalog);
                 SetRef(bootstrap, "_arenaLayout", layoutConfig);
 
-                var draftUi = netRoot.AddComponent<DraftLoadoutUI>();
+                var draftUi = matchControllerGo.AddComponent<DraftLoadoutUI>();
                 SetRef(draftUi, "_bootstrap", bootstrap);
 
-                var hud = netRoot.AddComponent<ArenaBootstrapHud>();
+                var hud = matchControllerGo.AddComponent<ArenaBootstrapHud>();
                 SetRef(hud, "_bootstrap", bootstrap);
 
-                var worldDockedUi = netRoot.AddComponent<DockedStructureWorldUI>();
+                var worldDockedUi = matchControllerGo.AddComponent<DockedStructureWorldUI>();
                 SetRef(worldDockedUi, "_bootstrap", bootstrap);
 
-                netRoot.SetActive(true);
+                // ArenaLocalNetworkRig intentionally stays inactive by default so Online PvP never initializes a duplicate NetworkManager;
+                // ArenaSessionBootstrap.Awake activates it automatically for Local PvP.
+                matchControllerGo.SetActive(true);
                 EditorSceneManager.SaveScene(arenaScene, ArenaScenePath);
             }
             finally

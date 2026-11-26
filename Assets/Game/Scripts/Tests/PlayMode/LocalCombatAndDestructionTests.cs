@@ -409,14 +409,8 @@ namespace Game.Tests.PlayMode
             yield return Until(() => !ship1.Docking.IsDocked, 3f, "Airship should auto-undock when docked structure is destroyed.");
             Assert.That(territory.IsInsideTeamTerritory(TeamId.TeamB, expandedPoint), Is.False, "Territory zone should shrink after Territory Balloon destruction.");
 
-            // Damage enemy airship -> verify health SyncVar drops & downed state triggers at 0 HP
-            float initialShipHp = ship1.CurrentHealth;
-            ship1.ApplyDamageServer(new DamageInfo(40f, TeamId.TeamA, 0, ship1.transform.position));
-            yield return null;
-            Assert.That(ship1.CurrentHealth, Is.EqualTo(initialShipHp - 40f).Within(0.1f));
-
-            ship1.ApplyDamageServer(new DamageInfo(200f, TeamId.TeamA, 0, ship1.transform.position));
-            yield return Until(() => ship1.IsDowned && !ship1.IsAlive, 2f, "Airship should become downed at 0 HP.");
+            // Airships are invulnerable (not IDamageable, no death, no respawn).
+            Assert.That(ship1 is IDamageable, Is.False, "Airships must not implement IDamageable.");
 
             // Destroy TeamB HQ -> verify MatchPhase.Ended & TeamA winner
             hqB.ApplyDamageServer(new DamageInfo(999f, TeamId.TeamA, 0, hqB.transform.position));
@@ -826,6 +820,277 @@ namespace Game.Tests.PlayMode
         }
 
         [UnityTest]
+        public IEnumerator StructureConstructionTakesDurationBlocksUseUntilCompleteAndActivatesServices()
+        {
+#if UNITY_EDITOR
+            var seatPrefabGo = UnityEditor.AssetDatabase.LoadAssetAtPath<GameObject>("Assets/Game/Prefabs/PlayerSeat.prefab");
+            var modePrefabGo = UnityEditor.AssetDatabase.LoadAssetAtPath<GameObject>("Assets/Game/Prefabs/GameModeController.prefab");
+            var economyPrefabGo = UnityEditor.AssetDatabase.LoadAssetAtPath<GameObject>("Assets/Game/Prefabs/EconomyController.prefab");
+            var territoryPrefabGo = UnityEditor.AssetDatabase.LoadAssetAtPath<GameObject>("Assets/Game/Prefabs/TerritoryController.prefab");
+            var buildPrefabGo = UnityEditor.AssetDatabase.LoadAssetAtPath<GameObject>("Assets/Game/Prefabs/StructureBuildController.prefab");
+            var structurePrefabGo = UnityEditor.AssetDatabase.LoadAssetAtPath<GameObject>("Assets/Game/Prefabs/GreyboxStructure.prefab");
+            var depositPrefabGo = UnityEditor.AssetDatabase.LoadAssetAtPath<GameObject>("Assets/Game/Prefabs/GoldDeposit.prefab");
+            var airshipPrefabGo = UnityEditor.AssetDatabase.LoadAssetAtPath<GameObject>("Assets/Game/Prefabs/Airship.prefab");
+            var projectilePrefabGo = UnityEditor.AssetDatabase.LoadAssetAtPath<GameObject>("Assets/Game/Prefabs/BallisticProjectile.prefab");
+
+            if (seatPrefabGo == null || modePrefabGo == null || economyPrefabGo == null || territoryPrefabGo == null
+                || buildPrefabGo == null || structurePrefabGo == null || depositPrefabGo == null
+                || airshipPrefabGo == null || projectilePrefabGo == null)
+            {
+                Assert.Ignore("Prefablar eksik. Tools > Game > Setup MainMenu & CannonBrawlArena (M1-1) çalıştırın.");
+            }
+
+            NetworkObject structureNob = structurePrefabGo.GetComponent<NetworkObject>();
+            _prefabs = ScriptableObject.CreateInstance<SinglePrefabObjects>();
+            _prefabs.AddObject(seatPrefabGo.GetComponent<NetworkObject>(), true, false);
+            _prefabs.AddObject(modePrefabGo.GetComponent<NetworkObject>(), true, false);
+            _prefabs.AddObject(economyPrefabGo.GetComponent<NetworkObject>(), true, false);
+            _prefabs.AddObject(territoryPrefabGo.GetComponent<NetworkObject>(), true, false);
+            _prefabs.AddObject(buildPrefabGo.GetComponent<NetworkObject>(), true, false);
+            _prefabs.AddObject(structureNob, true, false);
+            _prefabs.AddObject(depositPrefabGo.GetComponent<NetworkObject>(), true, false);
+            _prefabs.AddObject(airshipPrefabGo.GetComponent<NetworkObject>(), true, false);
+            _prefabs.AddObject(projectilePrefabGo.GetComponent<NetworkObject>(), true, false);
+
+            BuildLocalSessionRig(7789);
+            yield return null;
+
+            Assert.That(_session.StartLocalHost(), Is.True, _session.LastError);
+            yield return Until(
+                () => _session.IsAuthenticated
+                      && _networkManager.ClientManager.Connection != null
+                      && _networkManager.ClientManager.Connection.ClientId >= 0
+                      && _networkManager.ClientManager.Connection.LoadedStartScenes(true),
+                10f,
+                "Local host did not finish authentication/start scenes in time.");
+
+            Assert.That(_networkManager.ServerManager.Clients.TryGetValue(_networkManager.ClientManager.Connection.ClientId, out NetworkConnection hostConn), Is.True);
+
+            var arenaBounds = new Rect(-18f, -2f, 36f, 16f);
+            CardCatalogSO catalog = CreateCombatCatalog(structureNob, buildDurationSeconds: 0.55f);
+
+            var context = new MatchContext
+            {
+                Mode = MatchMode.LocalPvP,
+                CardCatalog = catalog,
+                Terrain = new ArenaGroundTerrainService(arenaBounds),
+                ProjectilePrefab = projectilePrefabGo.GetComponent<BallisticProjectile>(),
+                PlayableAirspace = arenaBounds
+            };
+
+            MatchSeatFactory.SpawnSeatsServer(
+                _networkManager,
+                seatPrefabGo.GetComponent<PlayerSeatController>(),
+                MatchMode.LocalPvP,
+                hostConn,
+                null,
+                context,
+                startingGold: 600);
+
+            Assert.That(context.TryGetSeat(0, out PlayerSeatController seat0), Is.True);
+            seat0.ApplyValidatedLoadoutServer(new ushort[] { 1, 10, 20, 11, 12 });
+
+            var mode = Object.Instantiate(modePrefabGo.GetComponent<GameModeController>());
+            _networkManager.ServerManager.Spawn(mode.NetworkObject);
+            mode.InitializeMatchServer(MatchMode.LocalPvP, null, context);
+            mode.TransitionPhaseServer(MatchPhase.Playing);
+            context.CanPilotAirships = () => mode.Phase == MatchPhase.Playing;
+
+            var economy = Object.Instantiate(economyPrefabGo.GetComponent<EconomyController>());
+            _networkManager.ServerManager.Spawn(economy.NetworkObject);
+            economy.InitializeServer(context, mode, 0f);
+
+            var territory = Object.Instantiate(territoryPrefabGo.GetComponent<TerritoryController>());
+            _networkManager.ServerManager.Spawn(territory.NetworkObject);
+            territory.InitializeServer(context, new Vector2(-12.5f, 0f), new Vector2(12.5f, 0f), 8.5f);
+
+            var builder = Object.Instantiate(buildPrefabGo.GetComponent<StructureBuildController>());
+            _networkManager.ServerManager.Spawn(builder.NetworkObject);
+            builder.InitializeServer(context, mode, catalog, structurePrefabGo.GetComponent<StructureBase>());
+
+            var deposit = Object.Instantiate(depositPrefabGo.GetComponent<GoldDepositNode>(), new Vector3(-9.5f, -2f, 0f), Quaternion.identity);
+            _networkManager.ServerManager.Spawn(deposit.NetworkObject);
+            deposit.InitializeServer(1, context);
+
+            var ship0 = Object.Instantiate(airshipPrefabGo.GetComponent<AirshipController>(), new Vector3(-7f, 0f, 0f), Quaternion.identity);
+            _networkManager.ServerManager.Spawn(ship0.NetworkObject, hostConn);
+            ship0.InitializeServer(0, TeamId.TeamA, context, arenaBounds);
+
+            yield return Until(
+                () => builder.IsClientInitialized && ship0.IsClientInitialized && territory.IsClientInitialized && economy.IsClientInitialized && deposit.IsClientInitialized,
+                5f,
+                "Construction test objects did not initialize.");
+
+            // 1. Build Cannon (0.55s buildDuration) -> starts under construction, cannot enter WeaponManualControl until finished.
+            BuildFeedback? lastFeedback = null;
+            builder.BuildFeedbackReceived += fb => lastFeedback = fb;
+
+            builder.RequestBuildFromSlot(0, 1, new Vector2(-7f, -1.3f));
+            yield return Until(() => lastFeedback.HasValue && lastFeedback.Value.Accepted, 3f, "Cannon placement was rejected.");
+            var cannon = context.Structures[0] as StructureBase;
+            Assert.That(cannon, Is.Not.Null);
+            Assert.That(cannon.IsUnderConstruction, Is.True);
+            Assert.That(cannon.IsConstructed, Is.False);
+            Assert.That(cannon.BuildProgress, Is.LessThan(1f));
+            Assert.That(cannon.IsWeaponReadyForControl, Is.False);
+
+            // Docking while under construction blocks Use -> remains in StructureActionSelect until construction finishes.
+            ship0.transform.position = cannon.DockAnchorWorld;
+            ship0.Docking.RequestToggleDock();
+            yield return Until(() => ship0.Docking.IsDocked && ship0.Docking.SubMode == DockedInteractionSubMode.StructureActionSelect, 2f, "Airship failed to dock on building cannon.");
+            Assert.That(ship0.Docking.State.CanUseTarget, Is.False);
+
+            ship0.Docking.RequestConfirmDockedSelection();
+            yield return null;
+            Assert.That(ship0.Docking.SubMode, Is.EqualTo(DockedInteractionSubMode.StructureActionSelect), "Under-construction weapon must not allow Use.");
+
+            yield return Until(() => cannon.IsConstructed && cannon.BuildProgress >= 0.99f && ship0.Docking.State.CanUseTarget, 3f, "Cannon did not complete construction and enable Use.");
+            ship0.Docking.RequestConfirmDockedSelection();
+            yield return Until(() => ship0.Docking.SubMode == DockedInteractionSubMode.WeaponManualControl, 2f, "Completed cannon did not enter WeaponManualControl.");
+            ship0.Docking.RequestToggleDock();
+            yield return Until(() => !ship0.Docking.IsDocked, 2f, "Airship failed to undock.");
+
+            // 2. Build Territory Balloon (0.55s) -> territory must NOT expand until construction finishes.
+            Vector2 expandedPoint = new(-1.5f, -1.3f);
+            Assert.That(territory.IsInsideTeamTerritory(TeamId.TeamA, expandedPoint), Is.False);
+            lastFeedback = null;
+            builder.RequestBuildFromSlot(0, 0, new Vector2(-6f, 2f));
+            yield return Until(() => lastFeedback.HasValue && lastFeedback.Value.Accepted, 3f, "Balloon placement failed.");
+            var balloon = context.Structures[1] as StructureBase;
+            Assert.That(balloon, Is.Not.Null);
+            Assert.That(balloon.IsUnderConstruction, Is.True);
+            Assert.That(territory.IsInsideTeamTerritory(TeamId.TeamA, expandedPoint), Is.False, "Territory must not expand before Balloon construction completes.");
+
+            yield return Until(() => balloon.IsConstructed && territory.IsInsideTeamTerritory(TeamId.TeamA, expandedPoint), 3f, "Territory did not expand once Balloon construction finished.");
+
+            // 3. Build Gold Mine (0.55s) -> income stays 0 until completed, and selling mid-construction refunds cleanly & frees deposit.
+            lastFeedback = null;
+            builder.RequestBuildFromSlot(0, 2, new Vector2(-9.5f, -1.3f));
+            yield return Until(() => lastFeedback.HasValue && lastFeedback.Value.Accepted, 3f, "Gold Mine placement failed.");
+            var mine = context.Structures[2] as StructureBase;
+            Assert.That(mine, Is.Not.Null);
+            Assert.That(mine.IsUnderConstruction, Is.True);
+            Assert.That(deposit.IsOccupied, Is.True);
+            Assert.That(seat0.IncomePerSecond, Is.EqualTo(0f).Within(0.01f), "Gold Mine must not grant income before construction completes.");
+
+            yield return Until(() => mine.IsConstructed && Mathf.Abs(seat0.IncomePerSecond - 8f) < 0.01f, 3f, "Gold Mine did not grant +8/sec income after construction finished.");
+#else
+            Assert.Ignore("Editor-only prefab path test.");
+            yield break;
+#endif
+        }
+
+        [UnityTest]
+        public IEnumerator AirshipIsInvulnerableToDirectAndSplashProjectileDamageAndNeverRespawns()
+        {
+#if UNITY_EDITOR
+            var seatPrefabGo = UnityEditor.AssetDatabase.LoadAssetAtPath<GameObject>("Assets/Game/Prefabs/PlayerSeat.prefab");
+            var modePrefabGo = UnityEditor.AssetDatabase.LoadAssetAtPath<GameObject>("Assets/Game/Prefabs/GameModeController.prefab");
+            var structurePrefabGo = UnityEditor.AssetDatabase.LoadAssetAtPath<GameObject>("Assets/Game/Prefabs/GreyboxStructure.prefab");
+            var airshipPrefabGo = UnityEditor.AssetDatabase.LoadAssetAtPath<GameObject>("Assets/Game/Prefabs/Airship.prefab");
+            var projectilePrefabGo = UnityEditor.AssetDatabase.LoadAssetAtPath<GameObject>("Assets/Game/Prefabs/BallisticProjectile.prefab");
+
+            if (seatPrefabGo == null || modePrefabGo == null || structurePrefabGo == null
+                || airshipPrefabGo == null || projectilePrefabGo == null)
+            {
+                Assert.Ignore("Prefablar eksik. Tools > Game > Setup MainMenu & CannonBrawlArena (M1-1) çalıştırın.");
+            }
+
+            NetworkObject structureNob = structurePrefabGo.GetComponent<NetworkObject>();
+            _prefabs = ScriptableObject.CreateInstance<SinglePrefabObjects>();
+            _prefabs.AddObject(seatPrefabGo.GetComponent<NetworkObject>(), true, false);
+            _prefabs.AddObject(modePrefabGo.GetComponent<NetworkObject>(), true, false);
+            _prefabs.AddObject(structureNob, true, false);
+            _prefabs.AddObject(airshipPrefabGo.GetComponent<NetworkObject>(), true, false);
+            _prefabs.AddObject(projectilePrefabGo.GetComponent<NetworkObject>(), true, false);
+
+            BuildLocalSessionRig(7790);
+            yield return null;
+
+            Assert.That(_session.StartLocalHost(), Is.True, _session.LastError);
+            yield return Until(
+                () => _session.IsAuthenticated
+                      && _networkManager.ClientManager.Connection != null
+                      && _networkManager.ClientManager.Connection.ClientId >= 0
+                      && _networkManager.ClientManager.Connection.LoadedStartScenes(true),
+                10f,
+                "Local host did not finish authentication/start scenes in time.");
+
+            Assert.That(_networkManager.ServerManager.Clients.TryGetValue(_networkManager.ClientManager.Connection.ClientId, out NetworkConnection hostConn), Is.True);
+
+            var arenaBounds = new Rect(-18f, -2f, 36f, 16f);
+            CardCatalogSO catalog = CreateCombatCatalog(structureNob);
+
+            var context = new MatchContext
+            {
+                Mode = MatchMode.LocalPvP,
+                CardCatalog = catalog,
+                Terrain = new ArenaGroundTerrainService(arenaBounds),
+                ProjectilePrefab = projectilePrefabGo.GetComponent<BallisticProjectile>(),
+                PlayableAirspace = arenaBounds
+            };
+
+            MatchSeatFactory.SpawnSeatsServer(
+                _networkManager,
+                seatPrefabGo.GetComponent<PlayerSeatController>(),
+                MatchMode.LocalPvP,
+                hostConn,
+                null,
+                context,
+                startingGold: 400);
+
+            var mode = Object.Instantiate(modePrefabGo.GetComponent<GameModeController>());
+            _networkManager.ServerManager.Spawn(mode.NetworkObject);
+            mode.InitializeMatchServer(MatchMode.LocalPvP, null, context);
+            mode.TransitionPhaseServer(MatchPhase.Playing);
+            context.CanPilotAirships = () => mode.Phase == MatchPhase.Playing;
+
+            var ship1 = Object.Instantiate(airshipPrefabGo.GetComponent<AirshipController>(), new Vector3(0f, 1f, 0f), Quaternion.identity);
+            _networkManager.ServerManager.Spawn(ship1.NetworkObject, hostConn);
+            ship1.InitializeServer(1, TeamId.TeamB, context, arenaBounds);
+
+            StructureBase enemyWall = SpawnStructureServer(
+                structurePrefabGo.GetComponent<StructureBase>(),
+                cardId: 11,
+                seatId: 1,
+                team: TeamId.TeamB,
+                category: StructureCategory.Defense,
+                pos: new Vector3(4f, 1f, 0f),
+                maxHealth: 100f,
+                footprint: new Vector2(1.8f, 2.2f),
+                territoryRadius: 0f,
+                incomeBonus: 0f,
+                context);
+
+            yield return Until(() => ship1.IsClientInitialized && enemyWall.IsClientInitialized, 5f, "Objects did not initialize.");
+
+            Assert.That(ship1 is IDamageable, Is.False);
+
+            // Launch heavy splash projectile directly through TeamB airship toward TeamB structure behind it.
+            BallisticProjectile projectile = Object.Instantiate(projectilePrefabGo.GetComponent<BallisticProjectile>(), new Vector3(-3f, 1f, 0f), Quaternion.identity);
+            _networkManager.ServerManager.Spawn(projectile.NetworkObject);
+            projectile.InitializeServer(
+                TeamId.TeamA,
+                0,
+                launchVelocity: new Vector2(20f, 0f),
+                gravityScale: 0f,
+                damage: 150f,
+                splashRadius: 3f,
+                context);
+
+            yield return Until(() => enemyWall == null || !enemyWall.IsAlive, 4f, "Projectile should pass through invulnerable airship and destroy structure behind it.");
+
+            // Airship remains fully operational and never respawns or freezes.
+            float xBefore = ship1.transform.position.x;
+            ship1.Movement.SubmitMoveInput(Vector2.right);
+            yield return Until(() => ship1.transform.position.x > xBefore + 0.1f, 2f, "Invulnerable airship should continue moving normally after projectile pass-through.");
+#else
+            Assert.Ignore("Editor-only prefab path test.");
+            yield break;
+#endif
+        }
+
+        [UnityTest]
         public IEnumerator ConfirmingUseWithHeldFireTransitionsToWeaponControlWithoutAccidentalFire()
         {
 #if UNITY_EDITOR
@@ -1003,7 +1268,7 @@ namespace Game.Tests.PlayMode
             return instance;
         }
 
-        private CardCatalogSO CreateCombatCatalog(NetworkObject structurePrefabNob)
+        private CardCatalogSO CreateCombatCatalog(NetworkObject structurePrefabNob, float buildDurationSeconds = 0f)
         {
             StructureCardSO CreateCard(
                 ushort id,
@@ -1022,7 +1287,9 @@ namespace Game.Tests.PlayMode
                     category != StructureCategory.Territory,
                     120f,
                     new Vector2(1.8f, 1.4f),
-                    structurePrefabNob);
+                    structurePrefabNob,
+                    requiresGoldDeposit: category == StructureCategory.Economy,
+                    buildDurationSeconds: buildDurationSeconds);
                 _runtimeAssets.Add(card);
                 return card;
             }

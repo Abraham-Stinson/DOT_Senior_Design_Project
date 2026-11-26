@@ -251,7 +251,7 @@ namespace Game.Tests.PlayMode
             {
                 var card = ScriptableObject.CreateInstance<StructureCardSO>();
                 card.ConfigureForTest(id, name, category, lockedZero, selectable, unlocked, cost, 0);
-                card.ConfigureGameplayStats(territoryRadius, incomeBonus, 0.1f, requiresGround, 120f, footprint, structurePrefabNob);
+                card.ConfigureGameplayStats(territoryRadius, incomeBonus, 0.1f, requiresGround, 120f, footprint, structurePrefabNob, requiresGoldDeposit: false, buildDurationSeconds: 0f);
                 _runtimeAssets.Add(card);
                 return card;
             }

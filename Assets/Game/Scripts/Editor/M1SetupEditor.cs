@@ -153,63 +153,63 @@ namespace Game.Editor
             StructureCardSO balloon = EnsureStructureCardAsset(
                 "Card_01_TerritoryBalloon.asset", 1, "Territory Balloon", StructureCategory.Territory,
                 isLockedInSlotZero: true, isDeckSelectable: false, unlockedByDefault: true, buildCostGold: 75, unlockCostSoftCurrency: 0);
-            balloon.ConfigureGameplayStats(7.5f, 0f, 1f, false, 120f, new Vector2(1.6f, 1.6f), structurePrefabNob);
+            balloon.ConfigureGameplayStats(7.5f, 0f, 1f, false, 120f, new Vector2(1.6f, 1.6f), structurePrefabNob, requiresGoldDeposit: false, buildDurationSeconds: 2.0f);
             balloon.ConfigureWeaponStats(false, 0f, 1f, 0f, 10f);
             EditorUtility.SetDirty(balloon);
 
             StructureCardSO cannon = EnsureStructureCardAsset(
                 "Card_10_Cannon.asset", 10, "Cannon", StructureCategory.Offense,
                 isLockedInSlotZero: false, isDeckSelectable: true, unlockedByDefault: true, buildCostGold: 100, unlockCostSoftCurrency: 0);
-            cannon.ConfigureGameplayStats(0f, 0f, 1f, true, 140f, new Vector2(1.8f, 1.4f), structurePrefabNob);
-            cannon.ConfigureWeaponStats(true, 45f, 10f, 24f, 19f, gravityScale: 1f, splashRadius: 1.5f, canTargetAirships: true, preferHighArc: false);
+            cannon.ConfigureGameplayStats(0f, 0f, 1f, true, 140f, new Vector2(1.8f, 1.4f), structurePrefabNob, requiresGoldDeposit: false, buildDurationSeconds: 3.0f);
+            cannon.ConfigureWeaponStats(true, 45f, 10f, 24f, 19f, gravityScale: 1f, splashRadius: 1.5f, canTargetAirships: false, preferHighArc: false);
             EditorUtility.SetDirty(cannon);
 
             StructureCardSO shield = EnsureStructureCardAsset(
                 "Card_11_ShieldGenerator.asset", 11, "Shield Generator", StructureCategory.Defense,
                 isLockedInSlotZero: false, isDeckSelectable: true, unlockedByDefault: true, buildCostGold: 120, unlockCostSoftCurrency: 0);
-            shield.ConfigureGameplayStats(0f, 0f, 1f, true, 180f, new Vector2(1.8f, 1.4f), structurePrefabNob);
+            shield.ConfigureGameplayStats(0f, 0f, 1f, true, 180f, new Vector2(1.8f, 1.4f), structurePrefabNob, requiresGoldDeposit: false, buildDurationSeconds: 3.0f);
             shield.ConfigureWeaponStats(false, 0f, 10f, 0f, 10f);
             EditorUtility.SetDirty(shield);
 
             StructureCardSO flak = EnsureStructureCardAsset(
                 "Card_12_FlakTower.asset", 12, "Flak Tower", StructureCategory.Offense,
                 isLockedInSlotZero: false, isDeckSelectable: true, unlockedByDefault: true, buildCostGold: 110, unlockCostSoftCurrency: 0);
-            flak.ConfigureGameplayStats(0f, 0f, 1f, true, 130f, new Vector2(1.8f, 1.4f), structurePrefabNob);
-            flak.ConfigureWeaponStats(true, 30f, 8f, 20f, 24f, gravityScale: 0.35f, splashRadius: 1.8f, canTargetAirships: true, preferHighArc: false);
+            flak.ConfigureGameplayStats(0f, 0f, 1f, true, 130f, new Vector2(1.8f, 1.4f), structurePrefabNob, requiresGoldDeposit: false, buildDurationSeconds: 2.5f);
+            flak.ConfigureWeaponStats(true, 30f, 8f, 20f, 24f, gravityScale: 0.35f, splashRadius: 1.8f, canTargetAirships: false, preferHighArc: false);
             EditorUtility.SetDirty(flak);
 
             StructureCardSO spawner = EnsureStructureCardAsset(
                 "Card_13_BombBotSpawner.asset", 13, "Bomb Bot Spawner", StructureCategory.Spawner,
                 isLockedInSlotZero: false, isDeckSelectable: true, unlockedByDefault: true, buildCostGold: 150, unlockCostSoftCurrency: 0);
-            spawner.ConfigureGameplayStats(0f, 0f, 1f, true, 160f, new Vector2(1.8f, 1.4f), structurePrefabNob);
+            spawner.ConfigureGameplayStats(0f, 0f, 1f, true, 160f, new Vector2(1.8f, 1.4f), structurePrefabNob, requiresGoldDeposit: false, buildDurationSeconds: 3.5f);
             spawner.ConfigureWeaponStats(false, 0f, 10f, 0f, 10f);
             EditorUtility.SetDirty(spawner);
 
             StructureCardSO goldMine = EnsureStructureCardAsset(
                 "Card_20_GoldMine.asset", 20, "Gold Mine", StructureCategory.Economy,
                 isLockedInSlotZero: false, isDeckSelectable: true, unlockedByDefault: false, buildCostGold: 80, unlockCostSoftCurrency: 150);
-            goldMine.ConfigureGameplayStats(0f, 8f, 1f, true, 110f, new Vector2(1.8f, 1.4f), structurePrefabNob, requiresGoldDeposit: true);
+            goldMine.ConfigureGameplayStats(0f, 8f, 1f, true, 110f, new Vector2(1.8f, 1.4f), structurePrefabNob, requiresGoldDeposit: true, buildDurationSeconds: 2.5f);
             goldMine.ConfigureWeaponStats(false, 0f, 10f, 0f, 10f);
             EditorUtility.SetDirty(goldMine);
 
             StructureCardSO mortar = EnsureStructureCardAsset(
                 "Card_21_HeavyMortar.asset", 21, "Heavy Mortar", StructureCategory.Offense,
                 isLockedInSlotZero: false, isDeckSelectable: true, unlockedByDefault: false, buildCostGold: 175, unlockCostSoftCurrency: 200);
-            mortar.ConfigureGameplayStats(0f, 0f, 1f, true, 150f, new Vector2(2.0f, 1.5f), structurePrefabNob);
+            mortar.ConfigureGameplayStats(0f, 0f, 1f, true, 150f, new Vector2(2.0f, 1.5f), structurePrefabNob, requiresGoldDeposit: false, buildDurationSeconds: 4.0f);
             mortar.ConfigureWeaponStats(true, 75f, 12f, 30f, 20f, gravityScale: 1.25f, splashRadius: 3.2f, canTargetAirships: false, preferHighArc: true);
             EditorUtility.SetDirty(mortar);
 
             StructureCardSO laser = EnsureStructureCardAsset(
                 "Card_22_LaserTower.asset", 22, "Laser Tower", StructureCategory.Offense,
                 isLockedInSlotZero: false, isDeckSelectable: true, unlockedByDefault: false, buildCostGold: 200, unlockCostSoftCurrency: 250);
-            laser.ConfigureGameplayStats(0f, 0f, 1f, true, 140f, new Vector2(1.8f, 1.4f), structurePrefabNob);
-            laser.ConfigureWeaponStats(true, 55f, 10f, 24f, 36f, gravityScale: 0.05f, splashRadius: 0f, canTargetAirships: true, preferHighArc: false);
+            laser.ConfigureGameplayStats(0f, 0f, 1f, true, 140f, new Vector2(1.8f, 1.4f), structurePrefabNob, requiresGoldDeposit: false, buildDurationSeconds: 4.0f);
+            laser.ConfigureWeaponStats(true, 55f, 10f, 24f, 36f, gravityScale: 0.05f, splashRadius: 0f, canTargetAirships: false, preferHighArc: false);
             EditorUtility.SetDirty(laser);
 
             StructureCardSO hq = EnsureStructureCardAsset(
                 "Card_99_Headquarters.asset", 99, "Headquarters", StructureCategory.Core,
                 isLockedInSlotZero: false, isDeckSelectable: false, unlockedByDefault: true, buildCostGold: 0, unlockCostSoftCurrency: 0);
-            hq.ConfigureGameplayStats(8.5f, 0f, 0f, true, 500f, new Vector2(2.4f, 2.2f), structurePrefabNob);
+            hq.ConfigureGameplayStats(8.5f, 0f, 0f, true, 500f, new Vector2(2.4f, 2.2f), structurePrefabNob, requiresGoldDeposit: false, buildDurationSeconds: 0f);
             hq.ConfigureWeaponStats(false, 0f, 1f, 0f, 10f);
             EditorUtility.SetDirty(hq);
 

@@ -30,6 +30,18 @@ namespace Game.Gameplay
             _seat1Ready.OnChange -= HandleSeatReadyChanged;
         }
 
+        public override void OnStartClient()
+        {
+            base.OnStartClient();
+            ActiveArenaBootstrapRegistry.FindFor(NetworkManager)?.RegisterReplicatedDraftController(this);
+        }
+
+        public override void OnStopClient()
+        {
+            ActiveArenaBootstrapRegistry.FindFor(NetworkManager)?.UnregisterReplicatedDraftController(this);
+            base.OnStopClient();
+        }
+
         public void InitializeServer(MatchContext context, GameModeController gameMode)
         {
             if (!IsServerInitialized)

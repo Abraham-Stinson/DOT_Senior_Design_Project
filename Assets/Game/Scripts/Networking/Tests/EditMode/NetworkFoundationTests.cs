@@ -63,5 +63,19 @@ namespace PirateGame.Networking.Tests
         {
             Assert.DoesNotThrow(NetworkFoundationEditor.Validate);
         }
+
+        [TestCase(true, true, true, 2, 2, true)]
+        [TestCase(false, true, true, 2, 2, false)]
+        [TestCase(true, false, true, 2, 2, false)]
+        [TestCase(true, true, false, 2, 2, false)]
+        [TestCase(true, true, true, 1, 2, false)]
+        [TestCase(true, true, true, 2, 1, false)]
+        public void CanStartOnlineMatchRequiresHostLobbyAuthAndTwoConnectedClients(
+            bool isHost, bool inLobby, bool isAuthenticated, int lobbyMembers, int connectedClients, bool expected)
+        {
+            Assert.That(
+                SessionRules.CanStartOnlineMatch(isHost, inLobby, isAuthenticated, lobbyMembers, connectedClients),
+                Is.EqualTo(expected));
+        }
     }
 }

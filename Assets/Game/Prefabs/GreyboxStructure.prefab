@@ -156,22 +156,24 @@ MonoBehaviour:
   _spectatorInterpolation: 2
   _enableTeleport: 0
   _teleportThreshold: 1
-  <PrefabId>k__BackingField: 65535
+  <PrefabId>k__BackingField: 9
   <SpawnableCollectionId>k__BackingField: 0
   <AssetPathHash>k__BackingField: 14615683657644809995
   SceneId: 0
   SerializedTransformProperties:
     Position: {x: 0, y: 0, z: 0}
-    Rotation: {x: 0, y: 0, z: 0, w: 0}
-    Scale: {x: 0, y: 0, z: 0}
-    IsValid: 0
+    Rotation: {x: 0, y: 0, z: 0, w: 1}
+    Scale: {x: 1, y: 1, z: 1}
+    IsValid: 1
   <IsNested>k__BackingField: 0
   WasActiveDuringEdit: 0
   WasActiveDuringEdit_Set1: 1
   <ComponentIndex>k__BackingField: 0
   <PredictedSpawn>k__BackingField: {fileID: 0}
   <PredictedOwner>k__BackingField: {fileID: 0}
-  NetworkBehaviours: []
+  NetworkBehaviours:
+  - {fileID: 3458229619864816894}
+  - {fileID: 4498585241151318003}
   InitializedParentNetworkBehaviour: {fileID: 0}
   InitializedNestedNetworkObjects: []
   RuntimeParentNetworkBehaviour: {fileID: 0}
@@ -182,7 +184,7 @@ MonoBehaviour:
   _initializeOrder: 0
   _preventDespawnOnDisconnect: 0
   _defaultDespawnType: 0
-  _initializedTimestamp: 0
+  _initializedTimestamp: -8584059145311203300
 --- !u!114 &3458229619864816894
 MonoBehaviour:
   m_ObjectHideFlags: 0
@@ -195,9 +197,9 @@ MonoBehaviour:
   m_Script: {fileID: 11500000, guid: 308ea23242fdd4b44b5d72d45c6dcbb3, type: 3}
   m_Name: 
   m_EditorClassIdentifier: Game.Gameplay::Game.Gameplay.StructureWeaponController
-  _componentIndexCache: 255
+  _componentIndexCache: 0
   _addedNetworkObject: {fileID: 1234536712055230009}
-  _networkObjectCache: {fileID: 0}
+  _networkObjectCache: {fileID: 1234536712055230009}
   _projectilePrefab: {fileID: 5023573912559266985, guid: 8a634defcd1c3fa4b92cd7774fec04e9, type: 3}
   _muzzleHeightOffset: 0.5
   _manualAimSpeedDegPerSec: 65
@@ -213,9 +215,9 @@ MonoBehaviour:
   m_Script: {fileID: 11500000, guid: 03a8cc573f5109b4a94a71bc17968f95, type: 3}
   m_Name: 
   m_EditorClassIdentifier: Game.Gameplay::Game.Gameplay.StructureBase
-  _componentIndexCache: 255
+  _componentIndexCache: 1
   _addedNetworkObject: {fileID: 1234536712055230009}
-  _networkObjectCache: {fileID: 0}
+  _networkObjectCache: {fileID: 1234536712055230009}
   _bodyRenderer: {fileID: 4077986373257024681}
   _territoryRingRenderer: {fileID: 0}
   _weaponController: {fileID: 3458229619864816894}

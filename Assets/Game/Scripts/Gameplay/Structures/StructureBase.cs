@@ -23,7 +23,10 @@ namespace Game.Gameplay
         private readonly SyncVar<StructureCategory> _category = new();
         private readonly SyncVar<float> _currentHealth = new();
         private readonly SyncVar<float> _maxHealth = new();
+        private readonly SyncVar<bool> _isAliveState = new();
         private readonly SyncVar<bool> _isConstructed = new();
+        private readonly SyncVar<float> _buildDuration = new();
+        private readonly SyncVar<float> _buildProgress = new(new SyncTypeSettings(0.08f));
         private readonly SyncVar<bool> _isOccupied = new();
         private readonly SyncVar<bool> _isWeaponControlled = new();
         private readonly SyncVar<float> _territoryRadius = new();
@@ -33,11 +36,13 @@ namespace Game.Gameplay
         private MatchContext _context;
         private byte _dockedSeatId = byte.MaxValue;
         private int _registeredSourceId;
+        private float _constructionElapsedServer;
         private bool _hasTerritoryRegistration;
         private bool _hasIncomeRegistration;
         private Sprite _defaultBodySprite;
         private TerritoryCircleVisual _standaloneTerritoryVisual;
         private WorldHealthBarVisual _healthBarVisual;
+        private WorldHealthBarVisual _constructionBarVisual;
         private IGoldDeposit _boundGoldDeposit;
 
         private static Texture2D s_roundBodyTexture;
@@ -56,15 +61,19 @@ namespace Game.Gameplay
         public StructureCategory Category => _category.Value;
         public float CurrentHealth => _currentHealth.Value;
         public float MaxHealth => _maxHealth.Value;
-        public bool IsAlive => _isConstructed.Value && _currentHealth.Value > 0f;
+        public bool IsAlive => _isAliveState.Value && _currentHealth.Value > 0f;
         public bool IsConstructed => _isConstructed.Value;
+        public bool IsUnderConstruction => IsAlive && !_isConstructed.Value;
+        public float BuildDuration => _buildDuration.Value;
+        public float BuildProgress => _buildProgress.Value;
+        public float BuildRemainingSeconds => _isConstructed.Value ? 0f : Mathf.Max(0f, _buildDuration.Value * (1f - _buildProgress.Value));
         public bool IsOccupied => _isOccupied.Value;
         public bool IsWeaponControlled => _isWeaponControlled.Value;
         public float TerritoryRadius => _territoryRadius.Value;
         public float IncomeBonus => _incomeBonus.Value;
         public StructureWeaponController WeaponController => _weaponController;
         public bool HasWeapon => _weaponController != null && _weaponController.HasWeapon;
-        public bool IsWeaponReadyForControl => HasWeapon && !_weaponController.IsOnCooldown;
+        public bool IsWeaponReadyForControl => IsConstructed && HasWeapon && !_weaponController.IsOnCooldown;
         public Vector2 DockAnchorWorld => (Vector2)transform.position + _dockAnchorOffset;
         public Bounds FootprintBounds => new(transform.position, new Vector3(_footprintSize.Value.x, _footprintSize.Value.y, 1f));
 
@@ -97,6 +106,9 @@ namespace Game.Gameplay
             _category.OnChange += HandleCategoryChanged;
             _currentHealth.OnChange += HandleHealthSyncChanged;
             _maxHealth.OnChange += HandleHealthSyncChanged;
+            _isAliveState.OnChange += HandleConstructionVisualChanged;
+            _isConstructed.OnChange += HandleConstructedStateChanged;
+            _buildProgress.OnChange += HandleBuildProgressChanged;
             _isOccupied.OnChange += HandleOccupiedChanged;
             _isWeaponControlled.OnChange += HandleWeaponControlChanged;
             _territoryRadius.OnChange += HandleFloatVisualChanged;
@@ -109,6 +121,9 @@ namespace Game.Gameplay
             _category.OnChange -= HandleCategoryChanged;
             _currentHealth.OnChange -= HandleHealthSyncChanged;
             _maxHealth.OnChange -= HandleHealthSyncChanged;
+            _isAliveState.OnChange -= HandleConstructionVisualChanged;
+            _isConstructed.OnChange -= HandleConstructedStateChanged;
+            _buildProgress.OnChange -= HandleBuildProgressChanged;
             _isOccupied.OnChange -= HandleOccupiedChanged;
             _isWeaponControlled.OnChange -= HandleWeaponControlChanged;
             _territoryRadius.OnChange -= HandleFloatVisualChanged;
@@ -116,14 +131,36 @@ namespace Game.Gameplay
             CleanupServerRegistrations();
         }
 
+        public override void OnStartServer()
+        {
+            base.OnStartServer();
+            if (TimeManager != null)
+            {
+                TimeManager.OnTick += HandleServerTick;
+            }
+        }
+
         public override void OnStartClient()
         {
             base.OnStartClient();
+            ActiveArenaBootstrapRegistry.FindFor(NetworkManager)?.RegisterReplicatedStructure(this);
             UpdateVisuals();
+            _weaponController?.RefreshVisuals();
+        }
+
+        public override void OnStopClient()
+        {
+            ActiveArenaBootstrapRegistry.FindFor(NetworkManager)?.UnregisterReplicatedStructure(this);
+            base.OnStopClient();
         }
 
         public override void OnStopServer()
         {
+            if (TimeManager != null)
+            {
+                TimeManager.OnTick -= HandleServerTick;
+            }
+
             CleanupServerRegistrations();
             base.OnStopServer();
         }
@@ -137,7 +174,8 @@ namespace Game.Gameplay
             Vector2 footprintSize,
             float territoryRadius,
             float incomeBonus,
-            MatchContext context)
+            MatchContext context,
+            float buildDurationSeconds = 0f)
         {
             if (!IsServerInitialized)
             {
@@ -154,7 +192,9 @@ namespace Game.Gameplay
             _footprintSize.Value = new Vector2(Mathf.Max(0.25f, footprintSize.x), Mathf.Max(0.25f, footprintSize.y));
             _territoryRadius.Value = Mathf.Max(0f, territoryRadius);
             _incomeBonus.Value = Mathf.Max(0f, incomeBonus);
-            _isConstructed.Value = true;
+            _buildDuration.Value = Mathf.Max(0f, buildDurationSeconds);
+            _constructionElapsedServer = 0f;
+            _isAliveState.Value = true;
             _isOccupied.Value = false;
             _dockedSeatId = byte.MaxValue;
 
@@ -164,21 +204,70 @@ namespace Game.Gameplay
             {
                 _context.RegisterStructure(this);
                 _context.RegisterDockable(this, this, NetworkObject);
+            }
 
-                if (_territoryRadius.Value > 0f && _context.Territory != null)
+            if (StructureConstructionRules.IsComplete(0f, _buildDuration.Value))
+            {
+                CompleteConstructionServer();
+            }
+            else
+            {
+                _buildProgress.Value = 0f;
+                _isConstructed.Value = false;
+                UpdateVisuals();
+                _weaponController?.RefreshVisuals();
+            }
+        }
+
+        private void HandleServerTick()
+        {
+            if (!IsServerInitialized || !IsAlive || _isConstructed.Value)
+            {
+                return;
+            }
+
+            if (_context != null && _context.CanPilotAirships != null && !_context.CanPilotAirships())
+            {
+                return;
+            }
+
+            float dt = TimeManager != null ? (float)TimeManager.TickDelta : (1f / 30f);
+            _constructionElapsedServer += dt;
+            _buildProgress.Value = StructureConstructionRules.ComputeProgress(_constructionElapsedServer, _buildDuration.Value);
+
+            if (StructureConstructionRules.IsComplete(_constructionElapsedServer, _buildDuration.Value))
+            {
+                CompleteConstructionServer();
+            }
+        }
+
+        private void CompleteConstructionServer()
+        {
+            if (!IsServerInitialized || !IsAlive)
+            {
+                return;
+            }
+
+            _buildProgress.Value = 1f;
+            _isConstructed.Value = true;
+
+            if (_context != null)
+            {
+                if (_territoryRadius.Value > 0f && !_hasTerritoryRegistration && _context.Territory != null)
                 {
-                    _context.Territory.AddOrUpdateZoneServer(_registeredSourceId, team, transform.position, _territoryRadius.Value);
+                    _context.Territory.AddOrUpdateZoneServer(_registeredSourceId, _teamId.Value, transform.position, _territoryRadius.Value);
                     _hasTerritoryRegistration = true;
                 }
 
-                if (_incomeBonus.Value > 0f && _context.Economy != null)
+                if (_incomeBonus.Value > 0f && !_hasIncomeRegistration && _context.Economy != null)
                 {
-                    _context.Economy.RegisterIncomeSourceServer(ownerSeatId, _registeredSourceId, _incomeBonus.Value);
+                    _context.Economy.RegisterIncomeSourceServer(_ownerSeatId.Value, _registeredSourceId, _incomeBonus.Value);
                     _hasIncomeRegistration = true;
                 }
             }
 
             UpdateVisuals();
+            _weaponController?.RefreshVisuals();
         }
 
         public void BindGoldDepositServer(IGoldDeposit deposit)
@@ -210,6 +299,7 @@ namespace Game.Gameplay
         {
             return IsServerInitialized
                 && IsAlive
+                && IsConstructed
                 && team != TeamId.Neutral
                 && team == _teamId.Value
                 && _weaponController != null
@@ -263,6 +353,7 @@ namespace Game.Gameplay
 
             if (_currentHealth.Value <= 0f)
             {
+                _isAliveState.Value = false;
                 _isConstructed.Value = false;
                 _isWeaponControlled.Value = false;
                 DestroyedServer?.Invoke(this);
@@ -278,7 +369,7 @@ namespace Game.Gameplay
                 return;
             }
 
-            _isWeaponControlled.Value = active && HasWeapon && IsAlive && !_weaponController.IsOnCooldown;
+            _isWeaponControlled.Value = active && IsConstructed && HasWeapon && IsAlive && !_weaponController.IsOnCooldown;
             _weaponController?.RefreshVisuals();
         }
 
@@ -289,6 +380,7 @@ namespace Game.Gameplay
                 return false;
             }
 
+            _isAliveState.Value = false;
             _isConstructed.Value = false;
             _isWeaponControlled.Value = false;
             DestroyedServer?.Invoke(this);
@@ -372,12 +464,14 @@ namespace Game.Gameplay
         private void HandleTeamOrIdentityChanged(TeamId prev, TeamId next, bool asServer)
         {
             if (asServer && ShouldSuppressServerDuplicate()) return;
+            ActiveArenaBootstrapRegistry.FindFor(NetworkManager)?.RegisterReplicatedStructure(this);
             UpdateVisuals();
         }
 
         private void HandleCategoryChanged(StructureCategory prev, StructureCategory next, bool asServer)
         {
             if (asServer && ShouldSuppressServerDuplicate()) return;
+            ActiveArenaBootstrapRegistry.FindFor(NetworkManager)?.RegisterReplicatedStructure(this);
             UpdateVisuals();
         }
 
@@ -413,11 +507,33 @@ namespace Game.Gameplay
             HealthChanged?.Invoke(_currentHealth.Value, _maxHealth.Value);
         }
 
+        private void HandleConstructionVisualChanged(bool prev, bool next, bool asServer)
+        {
+            if (asServer && ShouldSuppressServerDuplicate()) return;
+            UpdateVisuals();
+        }
+
+        private void HandleConstructedStateChanged(bool prev, bool next, bool asServer)
+        {
+            if (asServer && ShouldSuppressServerDuplicate()) return;
+            UpdateVisuals();
+            _weaponController?.RefreshVisuals();
+        }
+
+        private void HandleBuildProgressChanged(float prev, float next, bool asServer)
+        {
+            if (asServer && ShouldSuppressServerDuplicate()) return;
+            UpdateVisuals();
+        }
+
         private void UpdateVisuals()
         {
             Color teamColor = _teamId.Value == TeamId.TeamA
                 ? new Color(0.25f, 0.62f, 0.96f)
                 : (_teamId.Value == TeamId.TeamB ? new Color(0.96f, 0.36f, 0.34f) : Color.gray);
+
+            bool underConstruction = IsUnderConstruction;
+            float progress = _buildProgress.Value;
 
             if (_bodyRenderer != null)
             {
@@ -439,13 +555,29 @@ namespace Game.Gameplay
                     _ => teamColor
                 };
 
-                _bodyRenderer.color = _isOccupied.Value
+                Color displayColor = _isOccupied.Value
                     ? Color.Lerp(categoryTint, Color.yellow, 0.35f)
                     : categoryTint;
 
-                _bodyRenderer.transform.localScale = new Vector3(_footprintSize.Value.x, _footprintSize.Value.y, 1f);
+                if (underConstruction)
+                {
+                    displayColor = Color.Lerp(displayColor, new Color(0.55f, 0.88f, 1f), 0.45f);
+                    displayColor.a = Mathf.Lerp(0.62f, 0.97f, Mathf.Clamp01(progress));
+
+                    float hScale = StructureConstructionRules.ComputeVisualHeightScale(progress);
+                    _bodyRenderer.transform.localScale = new Vector3(_footprintSize.Value.x, _footprintSize.Value.y * hScale, 1f);
+                    _bodyRenderer.transform.localPosition = new Vector3(0f, -_footprintSize.Value.y * 0.5f * (1f - hScale), 0f);
+                }
+                else
+                {
+                    _bodyRenderer.transform.localScale = new Vector3(_footprintSize.Value.x, _footprintSize.Value.y, 1f);
+                    _bodyRenderer.transform.localPosition = Vector3.zero;
+                }
+
+                _bodyRenderer.color = displayColor;
             }
 
+            UpdateConstructionBarVisual(underConstruction, progress);
             UpdateHealthBarVisual();
 
             if (_territoryRingRenderer != null)
@@ -458,7 +590,7 @@ namespace Game.Gameplay
             bool hasTerritoryController = ActiveTerritoryControllerRegistry.Current != null
                 || (_context != null && _context.Territory != null);
 
-            if (!hasTerritoryController && _territoryRadius.Value > 0.001f)
+            if (!hasTerritoryController && _isConstructed.Value && _territoryRadius.Value > 0.001f)
             {
                 if (_standaloneTerritoryVisual == null)
                 {
@@ -479,6 +611,30 @@ namespace Game.Gameplay
             {
                 _standaloneTerritoryVisual.gameObject.SetActive(false);
             }
+        }
+
+        private void UpdateConstructionBarVisual(bool underConstruction, float progress)
+        {
+            if (!underConstruction && _constructionBarVisual == null)
+            {
+                return;
+            }
+
+            if (_constructionBarVisual == null)
+            {
+                var barGo = new GameObject("StructureConstructionBar");
+                barGo.transform.SetParent(transform, false);
+                _constructionBarVisual = barGo.AddComponent<WorldHealthBarVisual>();
+            }
+
+            float yOffset = _footprintSize.Value.y * 0.5f + 0.18f;
+            float width = Mathf.Max(1.4f, _footprintSize.Value.x * 0.95f);
+            _constructionBarVisual.SetProgress(
+                progress,
+                yOffset,
+                width,
+                new Color(0.32f, 0.86f, 1f, 0.95f),
+                visible: underConstruction);
         }
 
         private void UpdateHealthBarVisual()

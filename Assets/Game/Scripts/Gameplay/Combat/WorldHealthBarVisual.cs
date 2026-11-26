@@ -31,6 +31,22 @@ namespace Game.Gameplay
                 return;
             }
 
+            float ratio = Mathf.Clamp01(current / max);
+            Color fillColor = ratio > 0.55f
+                ? new Color(0.24f, 0.9f, 0.38f, 0.95f)
+                : (ratio > 0.25f ? new Color(1f, 0.78f, 0.18f, 0.95f) : new Color(0.95f, 0.24f, 0.22f, 0.95f));
+            SetProgress(ratio, yOffset, width, fillColor, visible: true);
+        }
+
+        public void SetProgress(float ratio, float yOffset, float width, Color fillColor, bool visible = true)
+        {
+            if (!visible)
+            {
+                if (_bgRenderer != null) _bgRenderer.enabled = false;
+                if (_fillRenderer != null) _fillRenderer.enabled = false;
+                return;
+            }
+
             EnsureRenderers();
             _barWidth = Mathf.Max(0.8f, width);
             const float barHeight = 0.14f;
@@ -41,14 +57,12 @@ namespace Game.Gameplay
             _bgRenderer.enabled = true;
             _bgRenderer.transform.localScale = new Vector3(_barWidth + 0.08f, barHeight + 0.06f, 1f);
 
-            float ratio = Mathf.Clamp01(current / max);
-            float fillWidth = _barWidth * ratio;
+            float clampedRatio = Mathf.Clamp01(ratio);
+            float fillWidth = _barWidth * clampedRatio;
             _fillRenderer.enabled = fillWidth > 0.005f;
             _fillRenderer.transform.localScale = new Vector3(fillWidth, barHeight, 1f);
             _fillRenderer.transform.localPosition = new Vector3((fillWidth - _barWidth) * 0.5f, 0f, -0.01f);
-            _fillRenderer.color = ratio > 0.55f
-                ? new Color(0.24f, 0.9f, 0.38f, 0.95f)
-                : (ratio > 0.25f ? new Color(1f, 0.78f, 0.18f, 0.95f) : new Color(0.95f, 0.24f, 0.22f, 0.95f));
+            _fillRenderer.color = fillColor;
         }
 
         private void EnsureRenderers()

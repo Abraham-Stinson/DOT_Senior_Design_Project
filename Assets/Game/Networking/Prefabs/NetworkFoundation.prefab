@@ -169,7 +169,7 @@ MonoBehaviour:
   m_Name: 
   m_EditorClassIdentifier: FishNet.Runtime::FishNet.Managing.NetworkManager
   _logging: {fileID: 0}
-  _spawnablePrefabs: {fileID: 11400000, guid: c9d6ca270af894e4ea7c4c32710661e8, type: 2}
+  _spawnablePrefabs: {fileID: 11400000, guid: d44f52fc721824c44a2512ed6dd1f34a, type: 2}
   _refreshDefaultPrefabs: 0
   _runInBackground: 1
   _dontDestroyOnLoad: 0

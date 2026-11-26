@@ -50,7 +50,7 @@ namespace Game.UI
 
             if (_catalog == null)
             {
-                _armoryFeedback = "CardCatalog atanmamış. Tools > Game > Setup MainMenu & CannonBrawlArena (M1-1) çalıştırın.";
+                _armoryFeedback = "Kart kataloğu yüklenemedi.";
                 return;
             }
 
@@ -106,10 +106,10 @@ namespace Game.UI
 
                 _armoryFeedback = result switch
                 {
-                    CardUnlockResult.Success => "Kart açıldı ve kaydedildi (Local PvP'de P1 ve P2 kullanabilir).",
-                    CardUnlockResult.InsufficientCurrency => "Yetersiz bakiye.",
+                    CardUnlockResult.Success => "Kart açıldı ve desteye hazır.",
+                    CardUnlockResult.InsufficientCurrency => "Altın yetersiz.",
                     CardUnlockResult.AlreadyUnlocked => "Bu kart zaten açık.",
-                    CardUnlockResult.NotUnlockable => "Bu kart mağazadan açılamaz.",
+                    CardUnlockResult.NotUnlockable => "Bu kart dükkandan açılamaz.",
                     _ => "Kart bulunamadı."
                 };
             }
@@ -151,11 +151,11 @@ namespace Game.UI
             if (accepted)
             {
                 bool isReady = _bootstrap != null && _bootstrap.IsSeatDraftReady(slotId);
-                _seatFeedback[slotId] = isReady ? "Deste doğrulandı — Hazır." : "Deste güncellendi (Hazır değil).";
+                _seatFeedback[slotId] = isReady ? "Hazır!" : "Deste güncellendi.";
                 return;
             }
 
-            _seatFeedback[slotId] = $"Reddedildi ({rejectReason} / {loadoutError}, slot {failingSlotIndex}).";
+            _seatFeedback[slotId] = "Deste eksik veya geçersiz kart içeriyor.";
         }
 
         private void OnGUI()
@@ -167,8 +167,8 @@ namespace Game.UI
 
             if (_progression == null || !_progression.IsLoaded)
             {
-                GUILayout.BeginArea(new Rect(16, 16, 420, 90), GUI.skin.box);
-                GUILayout.Label("Profil ve Kart Kataloğu yükleniyor...");
+                GUILayout.BeginArea(new Rect(16, 16, 360, 72), GUI.skin.box);
+                GUILayout.Label("Kartlar yükleniyor...");
                 if (!string.IsNullOrEmpty(_armoryFeedback))
                 {
                     GUILayout.Label(_armoryFeedback);
@@ -181,12 +181,8 @@ namespace Game.UI
             float panelHeight = Mathf.Max(420f, Screen.height - 32f);
             GUILayout.BeginArea(new Rect(16f, 16f, panelWidth, panelHeight), GUI.skin.box);
 
-            GUILayout.Label($"5-Slot Deste Seçimi ({_bootstrap.ActiveMode}) · Bakiye: {_progression.SoftCurrency} Altın");
-            GUILayout.Label("Kural: Slot 0 kalıcı Territory Balloon · Slot 1..4 seçilebilir açık kartlar (Gold Mine isteğe bağlıdır).");
-            if (_bootstrap.ActiveMode == MatchMode.LocalPvP)
-            {
-                GUILayout.Label("Local PvP: Her iki oyuncu da hesap sahibinin açık kart havuzunu paylaşır.");
-            }
+            GUILayout.Label($"Deste Seçimi  ·  Bakiye: {_progression.SoftCurrency} Altın");
+            GUILayout.Label("Slot 1: Bölge Balonu (Sabit)  ·  Kalan 4 yuvaya istediğin kartları yerleştir.");
 
             DrawArmoryStrip();
 
@@ -194,14 +190,22 @@ namespace Game.UI
             if (_bootstrap.ActiveMode == MatchMode.LocalPvP)
             {
                 GUILayout.BeginHorizontal();
-                DrawSeatPanel(0, "Player 1 (TeamA)", _p1Deck, ref _p1Scroll);
+                DrawSeatPanel(0, "1. Oyuncu (Mavi)", _p1Deck, ref _p1Scroll);
                 GUILayout.Space(12);
-                DrawSeatPanel(1, "Player 2 (TeamB)", _p2Deck, ref _p2Scroll);
+                DrawSeatPanel(1, "2. Oyuncu (Kırmızı)", _p2Deck, ref _p2Scroll);
                 GUILayout.EndHorizontal();
+            }
+            else if (_bootstrap.TryGetLocalOwnedSeatId(out byte localSeatId))
+            {
+                byte oppSeatId = localSeatId == 0 ? (byte)1 : (byte)0;
+                bool oppReady = _bootstrap.IsSeatDraftReady(oppSeatId);
+                string localTitle = localSeatId == 0 ? "Mavi Takım (Sen)" : "Kırmızı Takım (Sen)";
+                GUILayout.Label($"Rakip: {(oppReady ? "Hazır" : "Deste seçiyor...")}");
+                DrawSeatPanel(localSeatId, localTitle, _p1Deck, ref _p1Scroll);
             }
             else
             {
-                DrawSeatPanel(0, "Yerel Oyuncu", _p1Deck, ref _p1Scroll);
+                GUILayout.Label("Maça bağlanılıyor...");
             }
 
             GUILayout.EndArea();
@@ -226,7 +230,7 @@ namespace Game.UI
             }
 
             GUILayout.BeginVertical(GUI.skin.box);
-            GUILayout.Label("Armory (Kilitli Kartları Aç):");
+            GUILayout.Label("Dükkan:");
             _armoryScroll = GUILayout.BeginScrollView(_armoryScroll, GUILayout.Height(46f));
             GUILayout.BeginHorizontal();
             for (int i = 0; i < selectable.Count; i++)
@@ -239,7 +243,7 @@ namespace Game.UI
 
                 bool canAfford = _progression.SoftCurrency >= card.UnlockCostSoftCurrency;
                 GUI.enabled = canAfford;
-                if (GUILayout.Button($"{card.DisplayName} Aç ({card.UnlockCostSoftCurrency} Altın)", GUILayout.Height(28f)))
+                if (GUILayout.Button($"{card.DisplayName} ({card.UnlockCostSoftCurrency} Altın)", GUILayout.Height(28f)))
                 {
                     _ = UnlockAndSaveAsync(card.CardId);
                 }
@@ -259,7 +263,7 @@ namespace Game.UI
         {
             bool isReady = _bootstrap.IsSeatDraftReady(seatId);
             GUILayout.BeginVertical(GUI.skin.box, GUILayout.ExpandWidth(true));
-            GUILayout.Label($"{title} — Durum: {(isReady ? "HAZIR" : "Seçim Yapıyor")}");
+            GUILayout.Label($"{title}  ·  {(isReady ? "HAZIR" : "Deste Kuruyor")}");
 
             deck[DeckRules.LockedBalloonSlotIndex] = _catalog.TerritoryBalloonCardId;
 
@@ -268,7 +272,7 @@ namespace Game.UI
                 : "Territory Balloon";
 
             GUI.enabled = false;
-            GUILayout.Button($"Slot 0 [KİLİTLİ]: {balloonName}", GUILayout.Height(26f));
+            GUILayout.Button($"1. {balloonName} (Sabit)", GUILayout.Height(26f));
             GUI.enabled = true;
 
             for (int slot = DeckRules.FreeSlotStartIndex; slot < DeckRules.DeckSize; slot++)
@@ -276,7 +280,7 @@ namespace Game.UI
                 ushort id = deck[slot];
                 if (id != 0 && _catalog.TryGetCard(id, out StructureCardSO card))
                 {
-                    if (GUILayout.Button($"Slot {slot}: {card.DisplayName} ({card.BuildCostGold}g) [Çıkar]", GUILayout.Height(26f)))
+                    if (GUILayout.Button($"{slot + 1}. {card.DisplayName} ({card.BuildCostGold}g)  [×]", GUILayout.Height(26f)))
                     {
                         deck[slot] = 0;
                         if (isReady)
@@ -288,13 +292,13 @@ namespace Game.UI
                 else
                 {
                     GUI.enabled = false;
-                    GUILayout.Button($"Slot {slot}: — Boş (Aşağıdan Kart Seçin) —", GUILayout.Height(26f));
+                    GUILayout.Button($"{slot + 1}. — Boş Yuva —", GUILayout.Height(26f));
                     GUI.enabled = true;
                 }
             }
 
             GUILayout.Space(6);
-            GUILayout.Label("Kart Havuzu:");
+            GUILayout.Label("Kartlar:");
             scrollPos = GUILayout.BeginScrollView(scrollPos, GUILayout.Height(180f));
             List<StructureCardSO> selectable = _catalog.GetDeckSelectableCards();
             for (int i = 0; i < selectable.Count; i++)
@@ -307,13 +311,13 @@ namespace Game.UI
                 if (!unlocked)
                 {
                     GUI.enabled = false;
-                    GUILayout.Button($"[KİLİTLİ] {card.DisplayName} (Armory: {card.UnlockCostSoftCurrency})");
+                    GUILayout.Button($"[Kilitli] {card.DisplayName} ({card.UnlockCostSoftCurrency} Altın)");
                     GUI.enabled = true;
                 }
                 else if (alreadyInDeck)
                 {
                     GUI.enabled = false;
-                    GUILayout.Button($"[DESTEDE] {card.DisplayName}");
+                    GUILayout.Button($"✓ {card.DisplayName}");
                     GUI.enabled = true;
                 }
                 else
@@ -333,14 +337,14 @@ namespace Game.UI
             GUILayout.EndScrollView();
 
             GUILayout.Space(6);
-            string readyLabel = isReady ? "Hazır İptal Et" : "Desteyi Onayla (Hazır)";
+            string readyLabel = isReady ? "İptal Et" : "Hazırım";
             if (GUILayout.Button(readyLabel, GUILayout.Height(34f)))
             {
                 bool nextReady = !isReady;
                 ushort[] payload = (ushort[])deck.Clone();
                 _bootstrap.SubmitSeatLoadout(seatId, payload, nextReady);
 
-                if (nextReady && seatId == 0)
+                if (nextReady && (_bootstrap.ActiveMode != MatchMode.LocalPvP || seatId == 0))
                 {
                     _ = SaveLastLoadoutAsync(payload);
                 }

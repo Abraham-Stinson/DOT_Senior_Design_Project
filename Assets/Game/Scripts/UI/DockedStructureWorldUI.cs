@@ -88,6 +88,15 @@ namespace Game.UI
                     continue;
                 }
 
+                if (!_bootstrap.IsSeatLocallyOwned(seatId))
+                {
+                    if (_seatPrompts.TryGetValue(seatId, out SeatPromptCanvas nonOwned) && nonOwned.Root != null)
+                    {
+                        nonOwned.Root.SetActive(false);
+                    }
+                    continue;
+                }
+
                 bool isCarrying = _bootstrap.TryGetAirshipCarryInfo(seatId, out _, out _, out _, out _);
                 if (isCarrying || !_bootstrap.TryGetDockedInteractionInfo(
                         seatId,
@@ -100,6 +109,8 @@ namespace Game.UI
                         out bool canUseTarget,
                         out bool supportsUseAction,
                         out float targetCooldownRemaining,
+                        out bool targetIsConstructed,
+                        out float targetBuildProgress,
                         out Vector2 dockedWorldAnchor))
                 {
                     if (_seatPrompts.TryGetValue(seatId, out SeatPromptCanvas existing) && existing.Root != null)
@@ -128,6 +139,8 @@ namespace Game.UI
                     canUseTarget,
                     supportsUseAction,
                     targetCooldownRemaining,
+                    targetIsConstructed,
+                    targetBuildProgress,
                     catalog);
 
                 PositionPromptAboveStructure(prompt, dockedWorldAnchor, cam);
@@ -191,13 +204,16 @@ namespace Game.UI
             bool canUseTarget,
             bool supportsUseAction,
             float targetCooldownRemaining,
+            bool targetIsConstructed,
+            float targetBuildProgress,
             CardCatalogSO catalog)
         {
             bool isLocalPvP = _bootstrap.ActiveMode == MatchMode.LocalPvP;
-            string playerTag = isLocalPvP ? (seatId == 0 ? $"P1 · {team}" : $"P2 · {team}") : $"{team}";
+            string teamName = FormatTeamName(team);
+            string playerTag = isLocalPvP ? (seatId == 0 ? "P1" : "P2") : teamName;
             string navHint = isLocalPvP
-                ? (seatId == 0 ? "A/D: Seç · Space: Onay · E: Ayrıl" : "←/→: Seç · RCtrl: Onay · Enter: Ayrıl")
-                : "A/D: Seç · Space: Onay · E: Ayrıl";
+                ? (seatId == 0 ? "A/D Seç · Space Onay · E Çık" : "←/→ Seç · RCtrl Onay · Enter Çık")
+                : "A/D Seç · Space Onay · E Çık";
 
             Color teamAccent = team == TeamId.TeamA
                 ? new Color(0.16f, 0.50f, 0.86f, 0.96f)
@@ -217,10 +233,10 @@ namespace Game.UI
                 int cost = ResolveCardCost(targetCardId, catalog);
                 bool canAfford = gold >= cost;
 
-                prompt.HeaderTitle.text = $"{playerTag}  ·  BASE";
-                prompt.BaseSelectedLabel.text = $"{selectedDeckSlot + 1}. {cardName}  ({cost}g)" + (canAfford ? "" : "  [YETERSİZ]");
+                prompt.HeaderTitle.text = $"{playerTag} · ÜS";
+                prompt.BaseSelectedLabel.text = $"{cardName}  ({cost}g)" + (canAfford ? "" : "  · Altın yetersiz");
                 prompt.BaseSelectedLabel.color = canAfford ? new Color(0.75f, 0.98f, 0.80f) : new Color(1f, 0.50f, 0.48f);
-                prompt.BaseBuyButtonText.text = canAfford ? $"Al & Taşı ({cost}g)" : $"Yetersiz ({cost}g)";
+                prompt.BaseBuyButtonText.text = canAfford ? $"Al · {cost}g" : $"Yetersiz ({cost}g)";
                 prompt.BaseBuyButton.interactable = canAct && canAfford && targetCardId != 0;
                 prompt.BasePrevButton.interactable = canAct;
                 prompt.BaseNextButton.interactable = canAct;
@@ -239,7 +255,7 @@ namespace Game.UI
 
                         bool isSelected = s == selectedDeckSlot;
                         string slotName = Abbreviate(ResolveCardName(_loadoutBuffer[s], catalog), 7);
-                        prompt.SlotPills[s].Label.text = $"{s + 1}:{slotName}";
+                        prompt.SlotPills[s].Label.text = $"{s + 1}. {slotName}";
                         prompt.SlotPills[s].Label.color = isSelected ? Color.black : new Color(0.85f, 0.90f, 0.96f);
                         prompt.SlotPills[s].Background.color = isSelected
                             ? new Color(1f, 0.85f, 0.25f, 1f)
@@ -255,10 +271,10 @@ namespace Game.UI
                 prompt.WeaponView.SetActive(true);
 
                 string structureName = ResolveCardName(targetCardId, catalog);
-                prompt.HeaderTitle.text = $"{playerTag}  ·  {structureName} (SİLAH KONTROLÜ)";
+                prompt.HeaderTitle.text = $"{playerTag} · {structureName}";
                 prompt.WeaponHintText.text = isLocalPvP
-                    ? (seatId == 0 ? "WASD: Nişan · Space: Ateş · Q: Menü · E: Ayrıl" : "Oklar: Nişan · RCtrl: Ateş · Backspace: Menü · Enter: Ayrıl")
-                    : "Hareket/Fare: Nişan · Space/Tık: Ateş · Q: Menü · E: Ayrıl";
+                    ? (seatId == 0 ? "WASD Nişan · Space Ateş · E Çık" : "Oklar Nişan · RCtrl Ateş · Enter Çık")
+                    : "Fare/WASD Nişan · Tık/Space Ateş · E Çık";
                 prompt.WeaponMenuButton.interactable = canAct;
                 prompt.WeaponUndockButton.interactable = canAct;
             }
@@ -270,27 +286,38 @@ namespace Game.UI
                 prompt.WeaponView.SetActive(false);
 
                 string structureName = ResolveCardName(targetCardId, catalog);
-                prompt.HeaderTitle.text = $"{playerTag}  ·  {structureName}";
+                prompt.HeaderTitle.text = isLocalPvP ? $"{playerTag} · {structureName}" : structureName;
 
                 // Gold Mine has SupportsUseAction == false: never show a bogus Use button.
                 prompt.UsePillButton.gameObject.SetActive(supportsUseAction);
                 if (supportsUseAction)
                 {
                     bool useSelected = selectedAction == DockedStructureAction.Use;
-                    string useLabel = canUseTarget
-                        ? "KULLAN"
-                        : (targetCooldownRemaining > 0.05f ? $"BEKLE {targetCooldownRemaining:F1}s" : "KULLAN (Yok)");
+                    string useLabel;
+                    if (!targetIsConstructed)
+                    {
+                        int pct = Mathf.Clamp(Mathf.RoundToInt(targetBuildProgress * 100f), 0, 99);
+                        useLabel = $"İNŞA %{pct}";
+                    }
+                    else
+                    {
+                        useLabel = canUseTarget
+                            ? "KULLAN"
+                            : (targetCooldownRemaining > 0.05f ? $"{targetCooldownRemaining:F1}s" : "HAZIR DEĞİL");
+                    }
 
                     prompt.UsePillText.text = useSelected ? $"> {useLabel} <" : useLabel;
                     prompt.UsePillBg.color = useSelected
-                        ? (canUseTarget ? new Color(0.18f, 0.72f, 0.42f, 1f) : new Color(0.55f, 0.48f, 0.20f, 0.95f))
+                        ? (canUseTarget
+                            ? new Color(0.18f, 0.72f, 0.42f, 1f)
+                            : (!targetIsConstructed ? new Color(0.22f, 0.52f, 0.68f, 0.95f) : new Color(0.55f, 0.48f, 0.20f, 0.95f)))
                         : new Color(0.15f, 0.20f, 0.30f, 0.95f);
                     prompt.UsePillText.color = useSelected ? Color.white : new Color(0.76f, 0.82f, 0.90f);
-                    prompt.UsePillButton.interactable = canAct && canUseTarget;
+                    prompt.UsePillButton.interactable = canAct && targetIsConstructed && canUseTarget;
                 }
 
                 bool sellSelected = selectedAction == DockedStructureAction.Sell || !supportsUseAction;
-                string sellLabel = $"SAT (+{sellRefundGold}g)";
+                string sellLabel = $"SAT +{sellRefundGold}g";
                 prompt.SellPillText.text = sellSelected ? $"> {sellLabel} <" : sellLabel;
                 prompt.SellPillBg.color = sellSelected
                     ? new Color(0.86f, 0.36f, 0.20f, 1f)
@@ -301,9 +328,19 @@ namespace Game.UI
                 prompt.StructureHintText.text = supportsUseAction
                     ? navHint
                     : (isLocalPvP
-                        ? (seatId == 0 ? "Space: Sat · E: Ayrıl" : "RCtrl: Sat · Enter: Ayrıl")
-                        : "Space/Tık: Sat · E: Ayrıl");
+                        ? (seatId == 0 ? "Space Sat · E Çık" : "RCtrl Sat · Enter Çık")
+                        : "Space Sat · E Çık");
             }
+        }
+
+        private static string FormatTeamName(TeamId team)
+        {
+            return team switch
+            {
+                TeamId.TeamA => "Mavi",
+                TeamId.TeamB => "Kırmızı",
+                _ => "Tarafsız"
+            };
         }
 
         private SeatPromptCanvas GetOrCreatePrompt(byte seatId)
@@ -419,8 +456,8 @@ namespace Game.UI
             SetAnchoredRow(weaponHintText.rectTransform, topY: 0f, height: 22f);
 
             var weaponRow = CreateRow("WeaponRow", weaponView.transform, topY: -26f, height: 28f, spacing: 8f);
-            Button weaponMenuBtn = CreateButton("WeaponMenuBtn", weaponRow, font, "Menüye Dön", 0f, new Color(0.24f, 0.30f, 0.42f), expandWidth: true);
-            Button weaponUndockBtn = CreateButton("WeaponUndockBtn", weaponRow, font, "Ayrıl", 84f, new Color(0.55f, 0.24f, 0.26f));
+            Button weaponMenuBtn = CreateButton("WeaponMenuBtn", weaponRow, font, "Menü", 0f, new Color(0.24f, 0.30f, 0.42f), expandWidth: true);
+            Button weaponUndockBtn = CreateButton("WeaponUndockBtn", weaponRow, font, "Çık", 84f, new Color(0.55f, 0.24f, 0.26f));
 
             // Wire click events for mouse/touch convenience too
             byte capturedSeatId = seatId;

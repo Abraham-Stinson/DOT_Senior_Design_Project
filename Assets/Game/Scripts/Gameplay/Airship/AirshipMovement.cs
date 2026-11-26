@@ -13,7 +13,6 @@ namespace Game.Gameplay
         [SerializeField] private float _dockSnapSpeed = 24f;
 
         private AirshipDockingController _docking;
-        private AirshipController _controller;
         private MatchContext _context;
         private Rect _playableBounds = new(-18f, -2f, 36f, 16f);
         private Vector2 _serverMoveInput;
@@ -25,7 +24,6 @@ namespace Game.Gameplay
         private void Awake()
         {
             _docking = GetComponent<AirshipDockingController>();
-            _controller = GetComponent<AirshipController>();
         }
 
         public override void OnStartServer()
@@ -90,12 +88,6 @@ namespace Game.Gameplay
             }
 
             float dt = TimeManager != null ? (float)TimeManager.TickDelta : (1f / 30f);
-
-            if (_controller != null && !_controller.IsAlive)
-            {
-                _serverVelocity = Vector2.zero;
-                return;
-            }
 
             if (_docking != null && _docking.IsDocked)
             {

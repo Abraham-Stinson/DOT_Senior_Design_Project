@@ -21,7 +21,7 @@ MonoBehaviour:
   _unlockedByDefault: 1
   _unlockCostSoftCurrency: 0
   _buildCostGold: 150
-  _buildDurationSeconds: 2
+  _buildDurationSeconds: 3.5
   _buildCooldownSeconds: 1
   _maxHealth: 160
   _footprintSize: {x: 1.8, y: 1.4}

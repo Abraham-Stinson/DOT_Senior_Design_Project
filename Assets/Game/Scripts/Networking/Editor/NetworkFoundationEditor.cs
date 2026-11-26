@@ -24,6 +24,7 @@ namespace PirateGame.Networking.Editor
         public const string ScenePath = "Assets/Scenes/NetworkTest.unity";
         public const string SettingsPath = "Assets/Game/Networking/Configuration/SteamNetworkSettings.asset";
         public const string PrefabsPath = "Assets/Game/Networking/Configuration/NetworkTestPrefabs.asset";
+        public const string DefaultPrefabObjectsPath = "Assets/DefaultPrefabObjects.asset";
         public const string FoundationPrefabPath = "Assets/Game/Networking/Prefabs/NetworkFoundation.prefab";
 
         static NetworkFoundationEditor()
@@ -125,6 +126,7 @@ namespace PirateGame.Networking.Editor
                 EditorBuildSettings.scenes = EditorBuildSettings.scenes.Concat(new[] { new EditorBuildSettingsScene(ScenePath, true) }).ToArray();
             AssetDatabase.SaveAssets();
             SyncDevelopmentAppId();
+            EnsureGameplayPrefabsAssigned();
             Validate();
         }
 
@@ -163,6 +165,10 @@ namespace PirateGame.Networking.Editor
                 var transportManager = root.GetComponent<TransportManager>();
                 SetRef(transportManager, "Transport", multipass);
 
+                PrefabObjects gameplayPrefabs = AssetDatabase.LoadAssetAtPath<PrefabObjects>(DefaultPrefabObjectsPath);
+                if (gameplayPrefabs != null && root.TryGetComponent(out NetworkManager nm))
+                    SetRef(nm, "_spawnablePrefabs", gameplayPrefabs);
+
                 PrefabUtility.SaveAsPrefabAsset(root, FoundationPrefabPath);
             }
             finally
@@ -171,8 +177,38 @@ namespace PirateGame.Networking.Editor
             }
 
             AssetDatabase.SaveAssets();
+            EnsureGameplayPrefabsAssigned();
             Validate();
             Debug.Log("[M1-1] NetworkFoundation upgraded to Multipass (FishySteamworks + Tugboat loopback).");
+        }
+
+        public static void EnsureGameplayPrefabsAssigned()
+        {
+            PrefabObjects gameplayPrefabs = AssetDatabase.LoadAssetAtPath<PrefabObjects>(DefaultPrefabObjectsPath);
+            if (gameplayPrefabs == null || AssetDatabase.LoadAssetAtPath<GameObject>(FoundationPrefabPath) == null)
+                return;
+
+            GameObject root = PrefabUtility.LoadPrefabContents(FoundationPrefabPath);
+            try
+            {
+                if (root.TryGetComponent(out NetworkManager nm))
+                {
+                    var so = new SerializedObject(nm);
+                    SerializedProperty prop = so.FindProperty("_spawnablePrefabs");
+                    if (prop != null && prop.objectReferenceValue != gameplayPrefabs)
+                    {
+                        prop.objectReferenceValue = gameplayPrefabs;
+                        so.ApplyModifiedPropertiesWithoutUndo();
+                        PrefabUtility.SaveAsPrefabAsset(root, FoundationPrefabPath);
+                    }
+                }
+            }
+            finally
+            {
+                PrefabUtility.UnloadPrefabContents(root);
+            }
+
+            AssetDatabase.SaveAssets();
         }
 
         [MenuItem("Tools/Networking/M0-A/Validate NetworkTest")]
@@ -241,10 +277,15 @@ namespace PirateGame.Networking.Editor
             EnsureTestAssets();
             string output = Path.GetFullPath("Builds/WindowsNetworkTest/Untitled Pirate Game.exe");
             Directory.CreateDirectory(Path.GetDirectoryName(output));
+            var buildScenes = new System.Collections.Generic.List<string> { ScenePath };
+            if (AssetDatabase.LoadAssetAtPath<SceneAsset>("Assets/Game/Scenes/MainMenu.unity") != null)
+                buildScenes.Add("Assets/Game/Scenes/MainMenu.unity");
+            if (AssetDatabase.LoadAssetAtPath<SceneAsset>("Assets/Game/Scenes/CannonBrawlArena.unity") != null)
+                buildScenes.Add("Assets/Game/Scenes/CannonBrawlArena.unity");
             // Explicit scene list, so the sample scene never becomes the test build's entry scene.
             var report = BuildPipeline.BuildPlayer(new BuildPlayerOptions
             {
-                scenes = new[] { ScenePath }, locationPathName = output,
+                scenes = buildScenes.ToArray(), locationPathName = output,
                 target = BuildTarget.StandaloneWindows64, options = BuildOptions.Development
             });
             Directory.CreateDirectory("Logs");

@@ -21,7 +21,7 @@ MonoBehaviour:
   _unlockedByDefault: 1
   _unlockCostSoftCurrency: 0
   _buildCostGold: 110
-  _buildDurationSeconds: 2
+  _buildDurationSeconds: 2.5
   _buildCooldownSeconds: 1
   _maxHealth: 130
   _footprintSize: {x: 1.8, y: 1.4}
@@ -36,7 +36,7 @@ MonoBehaviour:
   _projectileSpeed: 24
   _projectileGravityScale: 0.35
   _splashRadius: 1.8
-  _canTargetAirships: 1
+  _canTargetAirships: 0
   _preferHighArc: 0
   _minAimAngleDegrees: 5
   _maxAimAngleDegrees: 85
