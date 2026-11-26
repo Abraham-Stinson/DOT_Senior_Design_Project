@@ -31,6 +31,14 @@ namespace Game.UI
             }
         }
 
+        public bool IsPromptVisibleForSeat(byte seatId)
+        {
+            return _seatPrompts.TryGetValue(seatId, out SeatPromptCanvas prompt)
+                && prompt != null
+                && prompt.Root != null
+                && prompt.Root.activeSelf;
+        }
+
         private void Awake()
         {
             if (_bootstrap == null)
@@ -116,6 +124,16 @@ namespace Game.UI
                     if (_seatPrompts.TryGetValue(seatId, out SeatPromptCanvas existing) && existing.Root != null)
                     {
                         existing.Root.SetActive(false);
+                    }
+                    continue;
+                }
+
+                // Base shopping is handled exclusively by the per-seat Tulpar HUD shop panels.
+                if (targetKind == DockedTargetKind.Base || subMode == DockedInteractionSubMode.BaseDeckSelect)
+                {
+                    if (_seatPrompts.TryGetValue(seatId, out SeatPromptCanvas baseExisting) && baseExisting.Root != null)
+                    {
+                        baseExisting.Root.SetActive(false);
                     }
                     continue;
                 }

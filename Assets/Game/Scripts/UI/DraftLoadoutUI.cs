@@ -74,7 +74,7 @@ namespace Game.UI
                     return;
                 }
 
-                if (_bootstrap != null)
+                if (_bootstrap != null && !MatchLaunchConfig.HasAnyPresetLoadout)
                 {
                     _bootstrap.SetLocalUnlockedCardProvider(_progression);
                 }
@@ -160,7 +160,7 @@ namespace Game.UI
 
         private void OnGUI()
         {
-            if (_bootstrap == null || !_bootstrap.IsDraftAvailable || _catalog == null)
+            if (_bootstrap == null || !_bootstrap.IsDraftAvailable || _catalog == null || MatchLaunchConfig.HasAnyPresetLoadout)
             {
                 return;
             }

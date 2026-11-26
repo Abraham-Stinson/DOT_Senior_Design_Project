@@ -152,6 +152,16 @@ namespace Game.Gameplay
             RequestCycleDockedSelectionServerRpc(delta);
         }
 
+        public void RequestSelectDockedDeckSlot(int slotIndex)
+        {
+            if (!IsOwner || !IsClientInitialized || !IsDocked || slotIndex < 0)
+            {
+                return;
+            }
+
+            RequestSelectDockedDeckSlotServerRpc(slotIndex);
+        }
+
         public void RequestConfirmDockedSelection()
         {
             if (!IsOwner || !IsClientInitialized || !IsDocked)
@@ -250,6 +260,36 @@ namespace Game.Gameplay
                 next.SelectedAction = DockedMenuNavigator.CycleStructureAction(next.SelectedAction, delta, next.SupportsUseAction);
                 _dockState.Value = next;
             }
+        }
+
+        [ServerRpc]
+        private void RequestSelectDockedDeckSlotServerRpc(int slotIndex)
+        {
+            if (!IsServerInitialized || !IsDocked)
+            {
+                return;
+            }
+
+            if (_context != null && _context.CanPilotAirships != null && !_context.CanPilotAirships())
+            {
+                return;
+            }
+
+            AirshipDockState next = _dockState.Value;
+            if (next.SubMode != DockedInteractionSubMode.BaseDeckSelect)
+            {
+                return;
+            }
+
+            int slotCount = GetSeatLoadoutCountServer(_seatId);
+            if (slotCount <= 0 || slotIndex < 0 || slotIndex >= slotCount)
+            {
+                return;
+            }
+
+            next.SelectedDeckSlot = slotIndex;
+            next.TargetCardId = ResolveSeatLoadoutCardServer(_seatId, slotIndex);
+            _dockState.Value = next;
         }
 
         [ServerRpc]

@@ -9,6 +9,21 @@ namespace PirateGame.UI
         private readonly int[] detail = { 2, 2 }, preferred = { -1, -1 };
         public LoadoutPresenter(PreviewCatalog catalog) { this.catalog = catalog; }
         public int Equipped(int player, int slot) => players[player][slot];
+        public int[] CopyEquippedPreviewIndices(int player)
+        {
+            var copy = new int[PreviewLoadout.Capacity];
+            if (player < 0 || player >= players.Length)
+            {
+                return copy;
+            }
+
+            for (int i = 0; i < PreviewLoadout.Capacity; i++)
+            {
+                copy[i] = players[player][i];
+            }
+
+            return copy;
+        }
         public void Inspect(int player, int card) { detail[player] = card; }
         public void Slot(int player, int slot)
         {

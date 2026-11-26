@@ -28,6 +28,8 @@ namespace PirateGame.UI
     {
         public int gold;
         public float goldPerMinute;
+        public string goldTextOverride;
+        public string productionTextOverride;
         public ShipVitality friendlyShip, opposingShip;
         public HudCard[] cards = new HudCard[5];
         public int selectedSlot;

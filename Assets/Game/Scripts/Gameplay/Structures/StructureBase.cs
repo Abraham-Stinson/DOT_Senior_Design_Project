@@ -639,8 +639,16 @@ namespace Game.Gameplay
 
         private void UpdateHealthBarVisual()
         {
-            bool alwaysShow = _category.Value == StructureCategory.Core;
-            bool shouldExist = alwaysShow || (_maxHealth.Value > 0.01f && _currentHealth.Value > 0.001f && _currentHealth.Value < _maxHealth.Value - 0.01f);
+            if (_category.Value == StructureCategory.Core)
+            {
+                if (_healthBarVisual != null)
+                {
+                    _healthBarVisual.SetHealth(0f, 0f, 0f, 1f, alwaysShow: false);
+                }
+                return;
+            }
+
+            bool shouldExist = _maxHealth.Value > 0.01f && _currentHealth.Value > 0.001f && _currentHealth.Value < _maxHealth.Value - 0.01f;
             if (!shouldExist && _healthBarVisual == null)
             {
                 return;
@@ -655,7 +663,7 @@ namespace Game.Gameplay
 
             float yOffset = _footprintSize.Value.y * 0.5f + 0.38f;
             float width = Mathf.Max(1.4f, _footprintSize.Value.x * 0.95f);
-            _healthBarVisual.SetHealth(_currentHealth.Value, _maxHealth.Value, yOffset, width, alwaysShow);
+            _healthBarVisual.SetHealth(_currentHealth.Value, _maxHealth.Value, yOffset, width, alwaysShow: false);
         }
 
         private static Sprite GetOrCreateRoundBodySprite()

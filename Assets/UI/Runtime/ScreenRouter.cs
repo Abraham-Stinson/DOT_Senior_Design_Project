@@ -90,6 +90,7 @@ namespace PirateGame.UI
             switchedFrame = Time.frameCount;
             held = peeking = false;
             foreach (var screen in screens) screen.gameObject.SetActive(screen.page == page);
+            if (page == Page.Lobby) SyncLocalOnlinePresetToLaunchConfig();
             Refresh();
             var first = page switch
             {
@@ -119,7 +120,7 @@ namespace PirateGame.UI
                 observedLobby = id;
                 if (id != 0) { QuitOpen = false; Mode = PreviewMode.Online; ReadyPreview = false; Go(Page.Lobby); }
                 else if (lost && Mode == PreviewMode.Online)
-                { ReadyPreview = false; online.Lost(); Go(Page.Multiplayer); }
+                { ReadyPreview = false; MatchLaunchConfig.Reset(); online.Lost(); Go(Page.Multiplayer); }
             }
             if ((Current == Page.Lobby || Current == Page.Multiplayer) && Time.unscaledTime >= refreshAt)
             {
@@ -192,6 +193,7 @@ namespace PirateGame.UI
                 case Command.Fight:
                     if (Mode == PreviewMode.Online)
                     {
+                        SyncLocalOnlinePresetToLaunchConfig();
                         if (!online.TryStartOnlineMatch())
                         {
                             Refresh();
@@ -203,7 +205,14 @@ namespace PirateGame.UI
                         if (!SecondJoined) break;
                         if (launchLiveArenaForLocalPvP && Application.CanStreamedLevelBeLoaded(GameSceneNames.CannonBrawlArena))
                         {
+                            MatchLaunchConfig.Reset();
                             MatchLaunchConfig.SelectMode(MatchMode.LocalPvP);
+                            MatchLaunchConfig.SetPresetLoadout(
+                                0,
+                                MatchLoadoutHandoffResolver.MapPreviewLoadoutToGameplayIds(loadouts.CopyEquippedPreviewIndices(0)));
+                            MatchLaunchConfig.SetPresetLoadout(
+                                1,
+                                MatchLoadoutHandoffResolver.MapPreviewLoadoutToGameplayIds(loadouts.CopyEquippedPreviewIndices(1)));
                             SceneManager.LoadScene(GameSceneNames.CannonBrawlArena, LoadSceneMode.Single);
                             break;
                         }
@@ -211,11 +220,16 @@ namespace PirateGame.UI
                     BeginPreview();
                     break;
                 case Command.Peek: peeking = !peeking; SetPanelsVisible(); Focus("peek"); break;
-                case Command.Slot: loadouts.Slot(arg/10,arg%10); Refresh(); break;
+                case Command.Slot:
+                    loadouts.Slot(arg/10,arg%10);
+                    if (Current == Page.Lobby) SyncLocalOnlinePresetToLaunchConfig();
+                    Refresh();
+                    break;
                 case Command.Choice:
                     int player = arg / 10;
                     if (loadouts.Choice(player, arg % 10, player == 1 ? 0 : progress.LastVictory, out int slot))
                     {
+                        if (Current == Page.Lobby) SyncLocalOnlinePresetToLaunchConfig();
                         Refresh();
                         Focus("p" + player + "slot" + slot);
                     }
@@ -227,7 +241,7 @@ namespace PirateGame.UI
                 case Command.Invite: online.Invite(); Refresh(); break;
                 case Command.RetrySteam: online.Retry(); Refresh(); break;
                 case Command.HostMap: if (online.Host) Go(Page.Map); break;
-                case Command.Ready: if (online.LobbyId != 0) { ReadyPreview=true; Refresh(); Focus("edit"); } break;
+                case Command.Ready: if (online.LobbyId != 0) { ReadyPreview=true; SyncLocalOnlinePresetToLaunchConfig(); Refresh(); Focus("edit"); } break;
                 case Command.Edit: ReadyPreview=false; Refresh(); Focus("ready"); break;
                 case Command.Advance:
                     if (++dialogue >= catalog.dialogue.Length) Go(Page.Hud);
@@ -245,6 +259,7 @@ namespace PirateGame.UI
                     break;
                 case Command.MainMenu:
                     if (online.LobbyId != 0) { observedLobby = 0; online.Leave(); }
+                    MatchLaunchConfig.Reset();
                     ReadyPreview = false;
                     Go(Page.MainMenu); break;
                 case Command.Win:
@@ -274,8 +289,21 @@ namespace PirateGame.UI
         {
             observedLobby = 0;
             ReadyPreview = false;
+            MatchLaunchConfig.Reset();
             online.Leave();
             Go(Page.Multiplayer);
+        }
+        void SyncLocalOnlinePresetToLaunchConfig()
+        {
+            if (loadouts == null)
+            {
+                return;
+            }
+
+            ushort[] mapped = MatchLoadoutHandoffResolver.MapPreviewLoadoutToGameplayIds(
+                loadouts.CopyEquippedPreviewIndices(0));
+            MatchLaunchConfig.SelectMode(MatchMode.OnlinePvP);
+            MatchLaunchConfig.SetLocalOnlinePresetLoadout(mapped);
         }
         void SetPanelsVisible()
         {

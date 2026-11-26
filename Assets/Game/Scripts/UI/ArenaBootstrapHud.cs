@@ -14,6 +14,7 @@ namespace Game.UI
     public sealed class ArenaBootstrapHud : MonoBehaviour
     {
         [SerializeField] private ArenaSessionBootstrap _bootstrap = null;
+        [SerializeField] private bool _renderLegacyImGui = false;
 
         private readonly List<ushort> _loadoutBuffer = new();
         private Vector2 _scrollPosition;
@@ -30,7 +31,7 @@ namespace Game.UI
 
         private void OnGUI()
         {
-            if (_bootstrap == null)
+            if (!_renderLegacyImGui || _bootstrap == null)
             {
                 return;
             }

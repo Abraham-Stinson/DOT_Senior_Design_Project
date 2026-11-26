@@ -325,6 +325,7 @@ namespace PirateGame.UI.Tests
             Assert.That(SceneManager.GetActiveScene().name, Is.EqualTo(GameSceneNames.CannonBrawlArena));
             Assert.That(MatchLaunchConfig.HasExplicitSelection, Is.True);
             Assert.That(MatchLaunchConfig.SelectedMode, Is.EqualTo(MatchMode.LocalPvP));
+            Assert.That(MatchLaunchConfig.HasAnyPresetLoadout, Is.True);
             yield return null;
         }
     }

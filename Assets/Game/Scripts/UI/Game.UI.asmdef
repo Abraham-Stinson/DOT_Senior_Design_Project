@@ -7,6 +7,10 @@
     "Game.Persistence",
     "Game.Gameplay",
     "Game.Input",
+    "PirateGame.UI.Presentation",
+    "PirateGame.UI",
+    "Unity.TextMeshPro",
+    "Unity.InputSystem",
     "UnityEngine.UI"
   ],
   "includePlatforms": [],

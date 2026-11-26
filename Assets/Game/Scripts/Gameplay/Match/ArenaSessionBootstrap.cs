@@ -92,6 +92,8 @@ namespace Game.Gameplay
 
         private readonly Dictionary<byte, BuildFeedback> _lastBuildFeedbackBySeat = new();
         private readonly Dictionary<byte, string> _lastActionNoticeBySeat = new();
+        private readonly HashSet<byte> _autoSubmittedPresetSeats = new();
+        private readonly List<ushort> _fallbackSelectableIdsBuffer = new();
         private INetworkSession _session;
         private IActiveOnlineSessionBridge _onlineBridge;
         private IUnlockedCardProvider _localUnlockedCardProvider;
@@ -237,10 +239,17 @@ namespace Game.Gameplay
             }
 
             TryCompleteClientMatchInitialization();
+            TryAutoSubmitPresetLoadouts();
+        }
+
+        private void Update()
+        {
+            TryAutoSubmitPresetLoadouts();
         }
 
         private void OnDestroy()
         {
+            SetLocalInputPaused(false);
             ActiveArenaBootstrapRegistry.Unregister(this);
             DetachMatchObjectCallbacks();
             UnsubscribeNetworkEvents();
@@ -668,6 +677,50 @@ namespace Game.Gameplay
             }
         }
 
+        public bool RequestSelectDockedDeckSlot(byte seatId, int slotIndex)
+        {
+            if (Context != null && Context.TryGetAirship(seatId, out AirshipController ship) && ship != null && ship.Docking != null)
+            {
+                ship.Docking.RequestSelectDockedDeckSlot(slotIndex);
+                return true;
+            }
+
+            return false;
+        }
+
+        public void SetLocalInputPaused(bool paused)
+        {
+            if (_inputRouter != null)
+            {
+                _inputRouter.EnableHardwarePolling = !paused;
+            }
+        }
+
+        public void ReloadArenaForRematch()
+        {
+            if (IsUsingPersistentOnlineSession)
+            {
+                ReturnToMainMenu();
+                return;
+            }
+
+            SetLocalInputPaused(false);
+            DetachMatchObjectCallbacks();
+            UnsubscribeNetworkEvents();
+
+            if (_session != null)
+            {
+                _session.Stop();
+            }
+
+            Context?.ClearSeats();
+
+            if (Application.CanStreamedLevelBeLoaded(GameSceneNames.CannonBrawlArena))
+            {
+                UnityEngine.SceneManagement.SceneManager.LoadScene(GameSceneNames.CannonBrawlArena, LoadSceneMode.Single);
+            }
+        }
+
         public void RequestToggleDock(byte seatId)
         {
             if (Context != null && Context.TryGetAirship(seatId, out AirshipController ship) && ship != null)
@@ -785,6 +838,7 @@ namespace Game.Gameplay
             DraftController.DraftStateChanged += HandleDraftStateChanged;
             DraftController.DraftCompleted += HandleDraftCompleted;
             TryCompleteClientMatchInitialization();
+            TryAutoSubmitPresetLoadouts();
         }
 
         public void UnregisterReplicatedDraftController(DraftLoadoutController draft)
@@ -982,6 +1036,58 @@ namespace Game.Gameplay
 
             IsMatchInitialized = true;
             MatchInitialized?.Invoke();
+            TryAutoSubmitPresetLoadouts();
+        }
+
+        private void TryAutoSubmitPresetLoadouts()
+        {
+            if (!IsDraftAvailable
+                || DraftController == null
+                || !DraftController.IsClientInitialized
+                || _cardCatalog == null
+                || Context == null
+                || !MatchLaunchConfig.HasAnyPresetLoadout)
+            {
+                return;
+            }
+
+            _fallbackSelectableIdsBuffer.Clear();
+            List<StructureCardSO> selectable = _cardCatalog.GetDeckSelectableCards();
+            for (int i = 0; i < selectable.Count; i++)
+            {
+                if (selectable[i] != null)
+                {
+                    _fallbackSelectableIdsBuffer.Add(selectable[i].CardId);
+                }
+            }
+
+            for (int i = 0; i < Context.Seats.Count; i++)
+            {
+                PlayerSeatController seat = Context.Seats[i];
+                if (seat == null || !seat.IsOwner || _autoSubmittedPresetSeats.Contains(seat.SeatId) || IsSeatDraftReady(seat.SeatId))
+                {
+                    continue;
+                }
+
+                ushort[] rawPreset = null;
+                if (!MatchLaunchConfig.TryGetPresetLoadout(seat.SeatId, out rawPreset))
+                {
+                    MatchLaunchConfig.TryGetLocalOnlinePresetLoadout(out rawPreset);
+                }
+
+                if (rawPreset == null)
+                {
+                    continue;
+                }
+
+                ushort[] normalizedDeck = MatchLoadoutHandoffResolver.NormalizeToValidDeck(
+                    rawPreset,
+                    _cardCatalog,
+                    _fallbackSelectableIdsBuffer,
+                    _localUnlockedCardProvider);
+                _autoSubmittedPresetSeats.Add(seat.SeatId);
+                SubmitSeatLoadout(seat.SeatId, normalizedDeck, true);
+            }
         }
 
         private void SubscribeNetworkEvents()

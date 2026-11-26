@@ -8,6 +8,7 @@
     "Game.Input",
     "Game.Gameplay",
     "Game.UI",
+    "PirateGame.UI.Presentation",
     "PirateGame.Networking.Core",
     "PirateGame.Networking",
     "FishNet.Runtime"

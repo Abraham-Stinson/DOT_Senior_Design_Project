@@ -65,8 +65,12 @@ namespace PirateGame.UI
         public void Present(BattleHudState state)
         {
             if (state == null) throw new ArgumentNullException(nameof(state));
-            gold.text = state.gold.ToString(CultureInfo.InvariantCulture);
-            production.text = state.goldPerMinute.ToString("+0.##;-0.##;0", CultureInfo.InvariantCulture) + "/min";
+            gold.text = string.IsNullOrEmpty(state.goldTextOverride)
+                ? state.gold.ToString(CultureInfo.InvariantCulture)
+                : state.goldTextOverride;
+            production.text = string.IsNullOrEmpty(state.productionTextOverride)
+                ? state.goldPerMinute.ToString("+0.##;-0.##;0", CultureInfo.InvariantCulture) + "/min"
+                : state.productionTextOverride;
             friendly.Display(state.friendlyShip);
             enemy.Display(state.opposingShip);
             bool playing = state.outcome == MatchOutcome.InProgress;

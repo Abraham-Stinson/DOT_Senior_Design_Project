@@ -6,6 +6,10 @@
     "Game.Data",
     "Game.Input",
     "Game.Gameplay",
+    "Game.UI",
+    "PirateGame.UI.Presentation",
+    "PirateGame.UI",
+    "Unity.TextMeshPro",
     "PirateGame.Networking.Core",
     "PirateGame.Networking",
     "FishNet.Runtime"
