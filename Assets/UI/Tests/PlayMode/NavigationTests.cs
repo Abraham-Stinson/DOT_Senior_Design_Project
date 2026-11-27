@@ -1,3 +1,4 @@
+using PirateGame.Gameplay;
 using System;
 using System.Collections;
 using NUnit.Framework;
@@ -105,23 +106,11 @@ namespace PirateGame.UI.Tests
             Assert.AreSame(background, ButtonAt((RectTransform)background.transform));
             Click("dialogueClick"); LabelIs("speaker","PRINCE");
             Assert.AreSame(next.gameObject, EventSystem.current.currentSelectedGameObject);
-            Click("advance");PageIs(Page.Hud);
-            Assert.IsFalse(ui.screens[(int)Page.Shop].gameObject.activeInHierarchy);
-            Click("interact");PageIs(Page.Shop);Click("buy");
-            LabelIs("shopNotice","Purchase preview only • no gold spent");LabelIs("gold",ui.catalog.previewGold.ToString());
-            ui.Back();PageIs(Page.Hud);ui.Back();PageIs(Page.Pause);
-            Action(Command.Settings);ui.Back();Click("resume");PageIs(Page.Hud);
-            Action(Command.Win);Assert.IsFalse(ui.View.Item("reward").activeInHierarchy);
-            Click("continue");Assert.AreEqual(2,ui.UnlockedLevel);
-            Click("node1");Assert.AreEqual(2,ui.SelectedLevel);Assert.IsFalse(ui.View.Item("node2").GetComponent<Button>().IsInteractable());
-            Click("fight");LabelIs("stagePreview","SHIELD PIRATE");
-            Assert.IsFalse(ui.View.Item("p0choice2").GetComponent<Button>().IsInteractable());
-            Click("fight");Click("advance");Click("advance");
-            Action(Command.Win);Assert.IsTrue(ui.View.Item("reward").activeInHierarchy);
-            Action(Command.Replay);Click("advance");Click("advance");Action(Command.Win);
-            Assert.IsFalse(ui.View.Item("reward").activeInHierarchy);
-            Action(Command.Replay);Click("advance");Click("advance");Action(Command.Lose);
-            Click("retry");PageIs(Page.Dialogue);yield return null;
+            Click("advance");
+            yield return Field(BattleMode.Campaign);
+            Assert.AreEqual(1,ui.launch.Context.CampaignLevelId);
+            Assert.AreEqual(1,ui.UnlockedLevel);
+            yield return LeaveField();
         }
 
         [UnityTest] public IEnumerator LocalPlayersHaveIndependentSlotsAndMapHoldRestoresPanels()
@@ -136,10 +125,92 @@ namespace PirateGame.UI.Tests
             yield return KeyDown(Key.Z);Assert.IsFalse(ui.View.Item("panels").activeInHierarchy);
             yield return Release();yield return null;Assert.IsTrue(ui.View.Item("panels").activeInHierarchy);
             Click("peek");Assert.IsTrue(ui.MapVisible);Click("peek");Assert.IsFalse(ui.MapVisible);
-            Click("localFight");PageIs(Page.Hud);Assert.IsFalse(ui.View.Item("objectives").activeInHierarchy);
-            Action(Command.Win);Assert.IsFalse(ui.View.Item("stars").activeInHierarchy);
-            Click("continue");PageIs(Page.Skirmish);Action(Command.AI);Click("continue");
-            Action(Command.Difficulty);LabelIs("difficulty","AI — NORMAL");Click("fight");PageIs(Page.Hud);
+            Click("p0slot1"); Click("localFight");
+            yield return Field(BattleMode.LocalPvP);
+            var field = Object.FindFirstObjectByType<BattleSessionBootstrap>();
+            Vector3 blue = field.BluePosition, red = field.RedPosition;
+            yield return KeyDown(Key.D);
+            yield return new WaitForSecondsRealtime(.12f);
+            yield return Release(); yield return new WaitForFixedUpdate();
+            Assert.Greater(field.BluePosition.x, blue.x);
+            Assert.That(field.RedPosition.x,Is.EqualTo(red.x).Within(.01f));
+            blue = field.BluePosition;
+            yield return KeyDown(Key.LeftArrow);
+            yield return new WaitForSecondsRealtime(.12f);
+            yield return Release(); yield return new WaitForFixedUpdate();
+            Assert.Less(field.RedPosition.x,red.x);
+            Assert.That(field.BluePosition.x,Is.EqualTo(blue.x).Within(.01f));
+            Assert.AreEqual(-1,BattleCards.Card(ui.launch.Context.BlueLoadout,1));
+            Assert.AreEqual(1,BattleCards.Card(ui.launch.Context.RedLoadout,1));
+            yield return LeaveField();
+            Click("skirmish");Action(Command.AI);Click("continue");
+            Action(Command.Difficulty);Click("fight");
+            yield return Field(BattleMode.BattleVsAI);
+            Assert.AreEqual(1,ui.launch.Context.AiDifficulty);
+            yield return LeaveField();
+        }
+
+        IEnumerator Field(BattleMode mode)
+        {
+            float limit = Time.realtimeSinceStartup + 15;
+            while (!SceneManager.GetSceneByName("Level_01").isLoaded && Time.realtimeSinceStartup < limit) yield return null;
+            yield return null;
+            Assert.AreEqual(mode,Object.FindFirstObjectByType<BattleSessionBootstrap>().CurrentMode);
+            Assert.AreEqual(mode,ui.launch.Context.Mode);
+            Assert.AreEqual(SceneManager.GetActiveScene().name,ui.launch.Context.MapId);
+            Assert.IsTrue(ui.launch.IsActive && ui.launch.IsAuthority);
+            Assert.AreEqual("Level_01",SceneManager.GetActiveScene().name);
+            Assert.AreEqual(1,Object.FindObjectsByType<Camera>(FindObjectsSortMode.None).Length);
+            Assert.AreEqual(1,Object.FindObjectsByType<AudioListener>(FindObjectsSortMode.None).Length);
+            Assert.AreSame(ui.network.Session.Manager,Object.FindFirstObjectByType<FishNet.Managing.NetworkManager>());
+            Assert.AreEqual(1,Object.FindObjectsByType<FishNet.Managing.NetworkManager>(FindObjectsSortMode.None).Length);
+            Assert.AreEqual(1,Object.FindObjectsByType<SteamRuntime>(FindObjectsSortMode.None).Length);
+            Assert.AreEqual(1,Object.FindObjectsByType<EventSystem>(FindObjectsSortMode.None).Length);
+            Assert.AreEqual(mode==BattleMode.LocalPvP ? 2 : 1,System.Array.FindAll(Object.FindObjectsByType<ZeppelinLocalInput>(FindObjectsSortMode.None),i=>i.enabled).Length);
+            Assert.IsFalse(ui.View.gameObject.activeInHierarchy);
+        }
+        IEnumerator LeaveField()
+        {
+            ui.launch.Leave();
+            float limit = Time.realtimeSinceStartup + 15;
+            while(ui.launch.Busy && Time.realtimeSinceStartup < limit) yield return null;
+            PageIs(Page.MainMenu);
+            Assert.IsFalse(SceneManager.GetSceneByName("Level_01").isLoaded);
+            Assert.IsNull(ui.launch.Context);
+            Assert.IsTrue(ui.launch.menuCamera.isActiveAndEnabled);
+            Assert.IsTrue(ui.View.gameObject.activeInHierarchy);
+        }
+
+        [UnityTest] public IEnumerator SingleHostFishNetSceneMembershipAndOnlineBootstrap()
+        {
+            if (!ui.network.Steam.IsReady) Assert.Ignore(ui.network.Steam.LastError);
+            Click("start"); Click("multiplayer"); Click("create");
+            var manager = ui.network.Session.Manager;
+            float until = Time.realtimeSinceStartup + 35;
+            while (ui.room.View.Lobby == 0 && Time.realtimeSinceStartup < until) yield return null;
+            Assert.IsTrue(ui.network.Session.IsAuthenticated);
+            var lobby = ui.network.Lobby.LobbyId;
+            var host = manager.ServerManager.Clients[manager.ClientManager.Connection.ClientId];
+            // Isolate scene membership with one actual connection. The absent seat never joins or spawns.
+            var fixture = new BattleLaunchContext(BattleMode.OnlinePvP,0,0,1,1,lobby,"scene-membership-test",host.ClientId,host.ClientId+1);
+            ui.launch.AcceptOnline(fixture);
+            manager.SceneManager.LoadConnectionScenes(host,new FishNet.Managing.Scened.SceneLoadData(BattleLaunchContext.DefaultMap));
+            until = Time.realtimeSinceStartup + 30;
+            while (!host.Scenes.Contains(SceneManager.GetSceneByName(BattleLaunchContext.DefaultMap)) && Time.realtimeSinceStartup < until) yield return null;
+            Assert.IsTrue(host.Scenes.Contains(SceneManager.GetSceneByName(BattleLaunchContext.DefaultMap)));
+            Assert.AreEqual(lobby,ui.network.Lobby.LobbyId);
+            Assert.IsTrue(ui.network.Session.IsAuthenticated);
+            Assert.AreSame(manager,ui.network.Session.Manager);
+            Assert.IsTrue(Object.FindFirstObjectByType<BattleSessionBootstrap>().IsOnline);
+            Assert.IsEmpty(Object.FindObjectsByType<ZeppelinLocalInput>(FindObjectsSortMode.None));
+            Assert.IsEmpty(Object.FindObjectsByType<ZeppelinNetworkInput>(FindObjectsSortMode.None));
+            Assert.IsFalse(ui.launch.IsActive);
+            ui.launch.Leave();
+            until = Time.realtimeSinceStartup + 30;
+            while (ui.launch.Busy && Time.realtimeSinceStartup < until) yield return null;
+            PageIs(Page.Multiplayer);
+            Assert.IsNull(ui.launch.Context);
+            Assert.IsFalse(SceneManager.GetSceneByName(BattleLaunchContext.DefaultMap).isLoaded);
         }
 
         [UnityTest] public IEnumerator GamepadTitleAndSubmitUseTheProjectUiActions()
@@ -252,7 +323,11 @@ namespace PirateGame.UI.Tests
             Click("start");Click("multiplayer");LabelIs("steamState","STEAM OFFLINE");
             Assert.IsFalse(ui.View.Item("create").GetComponent<Button>().IsInteractable());
             Assert.IsTrue(ui.View.Item("retry").activeInHierarchy);
-            Click("back");Click("campaign");Click("fight");PageIs(Page.Mission);yield return null;
+            Click("back");Click("campaign");Click("fight");PageIs(Page.Mission);
+            Click("fight");Click("advance");Click("advance");
+            yield return Field(BattleMode.Campaign);
+            Assert.IsFalse(ui.network.Steam.IsReady);
+            yield return LeaveField();
         }
 
         [UnityTest] public IEnumerator LostMembershipClosesOnlinePreviewAndPreservesOfflineNavigation()
@@ -261,7 +336,7 @@ namespace PirateGame.UI.Tests
             Click("start"); Click("multiplayer"); Click("create");
             float until=Time.realtimeSinceStartup+30;
             while(ui.Current!=Page.Lobby && Time.realtimeSinceStartup<until) yield return null;
-            PageIs(Page.Lobby); Click("onlinePreview"); ui.Back(); Action(Command.Settings);
+            PageIs(Page.Lobby); Action(Command.Settings);
             PageIs(Page.Settings);
             ui.network.LeaveLobby();
             yield return null; yield return null;
@@ -288,13 +363,23 @@ namespace PirateGame.UI.Tests
             string oldClipboard=GUIUtility.systemCopyBuffer;
             try { Click("copy");Assert.AreEqual(ui.network.Lobby.LobbyId.ToString(),GUIUtility.systemCopyBuffer); }
             finally { GUIUtility.systemCopyBuffer=oldClipboard; }
-            Click("ready");Assert.IsTrue(ui.ReadyPreview);ui.Back();Assert.IsFalse(ui.ReadyPreview);
-            Click("hostMap");PageIs(Page.Map);Assert.IsTrue(ui.View.Item("hostPreview").activeInHierarchy);
-            Click("continue"); Click("onlinePreview"); PageIs(Page.Hud);
-            ui.Back(); PageIs(Page.Pause); LabelIs("leaveCaption","RETURN TO LOBBY");
-            Click("resume"); Action(Command.Lose); LabelIs("destination","RETURN TO LOBBY");
-            Assert.IsFalse(ui.View.Item("replay").activeInHierarchy);
-            Click("continue"); PageIs(Page.Lobby); Click("back");
+            yield return new WaitUntil(()=>ui.room.View.Lobby!=0);
+            Click("ready"); yield return new WaitUntil(()=>ui.room.LocalReady);
+            Assert.IsFalse(ui.room.CanStart);
+            ui.room.Submit(0,true);
+            yield return new WaitForSecondsRealtime(.15f);
+            Assert.AreEqual(BattleCards.Starters,ui.room.View.BlueCards);
+            Assert.IsTrue(ui.room.LocalReady);
+            ui.room.Submit(1,true);
+            yield return new WaitUntil(()=>ui.room.View.BlueCards == 1);
+            Assert.IsFalse(ui.room.LocalReady);
+            ui.room.Submit(BattleCards.Starters,false);
+            yield return new WaitUntil(()=>ui.room.View.BlueCards == BattleCards.Starters);
+            Click("ready"); yield return new WaitUntil(()=>ui.room.LocalReady);
+            ui.room.StartMatch(); ui.room.StartMatch(); Assert.IsFalse(ui.launch.Busy);
+            ui.Back(); yield return new WaitUntil(()=>!ui.room.LocalReady);
+            Click("hostMap"); PageIs(Page.Map); Click("continue"); PageIs(Page.Lobby);
+            Click("back");
             PageIs(Page.Multiplayer);Assert.IsFalse(ui.network.Lobby.InLobby);
         }
     }

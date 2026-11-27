@@ -6,11 +6,14 @@ using UnityEngine.InputSystem;
 using UnityEngine.InputSystem.Utilities;
 using UnityEngine.UI;
 using PirateGame.Networking;
+using PirateGame.Gameplay;
 
 namespace PirateGame.UI
 {
     public sealed class ScreenRouter : MonoBehaviour
     {
+        public BattleLaunchService launch;
+        public BattleRoom room;
         public ScreenView[] screens;
         public PreviewCatalog catalog;
         public ButtonTheme theme;
@@ -39,7 +42,9 @@ namespace PirateGame.UI
 
         void Awake()
         {
-            online = new LobbyPresenter(network);
+            online = new LobbyPresenter(network,room);
+            launch.Returned += BattleClosed;
+            room.Changed += RoomChanged;
             loadouts = new LoadoutPresenter(catalog);
             battlePreview = new BattlePreviewPresenter(catalog, loadouts);
             foreach (var screen in screens)
@@ -49,8 +54,44 @@ namespace PirateGame.UI
             captionStart = Rect(Page.Dialogue,"caption").anchoredPosition;
             Go(Page.Title);
         }
+        ulong configuredLobby;
+        void RoomChanged()
+        {
+            if (configuredLobby != room.View.Lobby)
+            {
+                configuredLobby = room.View.Lobby;
+                if (configuredLobby != 0) room.Submit(Hand(0), false);
+            }
+            bool readyChanged = ReadyPreview != room.LocalReady;
+            ReadyPreview = room.LocalReady;
+            if (Current == Page.Lobby && !launch.Busy)
+            {
+                Refresh();
+                if (readyChanged) Focus(ReadyPreview ? "edit" : "ready");
+            }
+        }
+        ushort Hand(int player)
+        {
+            int packed = 0;
+            for (int i = 0; i < 5; i++) packed |= (loadouts.Equipped(player,i)+1) << (2*i);
+            return (ushort)packed;
+        }
+        void LaunchField()
+        {
+            var mode = Mode == PreviewMode.Campaign ? BattleMode.Campaign :
+                Mode == PreviewMode.AI ? BattleMode.BattleVsAI : BattleMode.LocalPvP;
+            launch.LaunchOffline(new BattleLaunchContext(mode,mode == BattleMode.Campaign ? SelectedLevel : 0,
+                difficulty,Hand(0),Hand(1)));
+        }
+        void BattleClosed()
+        {
+            observedLobby = 0; ReadyPreview = false;
+            Go(Mode == PreviewMode.Online ? Page.Multiplayer : Page.MainMenu);
+        }
         void OnDestroy()
         {
+            launch.Returned -= BattleClosed;
+            room.Changed -= RoomChanged;
             foreach (var screen in screens)
                 if (screen && screen.battleHud) screen.battleHud.Requested -= HandleHudIntent;
         }
@@ -104,6 +145,7 @@ namespace PirateGame.UI
         }
         void Update()
         {
+            if (launch.Busy) return;
             var field = screens[(int)Page.Multiplayer].Item("id").GetComponent<TMP_InputField>();
             // TMP can consume Escape before our Update. Keep the focus from the previous frame as well.
             bool editing = Current == Page.Multiplayer && field.isFocused;
@@ -130,6 +172,7 @@ namespace PirateGame.UI
         }
         void LateUpdate()
         {
+            if (launch.Busy) return;
             if (Current == Page.Title && titlePressed) { titlePressed = false; Execute(Command.Start); return; }
             if (switchedFrame == Time.frameCount || focusedField) return;
             var k = Keyboard.current; var pad = Gamepad.current;
@@ -161,6 +204,7 @@ namespace PirateGame.UI
 
         public void Execute(Command command, int arg = 0)
         {
+            if (launch.Busy) return;
             if (QuitOpen && command != Command.CancelQuit && command != Command.ConfirmQuit && command != Command.Back) return;
             switch (command)
             {
@@ -183,17 +227,18 @@ namespace PirateGame.UI
                 case Command.Prepare: Go(Page.Mission); break;
                 case Command.Local: Mode = PreviewMode.Local; SecondJoined = false; Go(Page.Map); break;
                 case Command.AI: Mode = PreviewMode.AI; Go(Page.Map); break;
-                case Command.ContinueMap: Go(Mode == PreviewMode.Online ? Page.Lobby : Mode == PreviewMode.AI ? Page.AI : Page.Local); break;
+                case Command.ContinueMap: if (Mode == PreviewMode.Online) room.SelectMap(BattleLaunchContext.DefaultMap); Go(Mode == PreviewMode.Online ? Page.Lobby : Mode == PreviewMode.AI ? Page.AI : Page.Local); break;
                 case Command.JoinSecond: SecondJoined = true; Refresh(); Focus("localFight"); break;
                 case Command.Difficulty: difficulty = (difficulty+1)%3; Refresh(); break;
                 case Command.Fight: if (Mode != PreviewMode.Online && (Mode != PreviewMode.Local || SecondJoined)) BeginPreview(); break;
                 case Command.Peek: peeking = !peeking; SetPanelsVisible(); Focus("peek"); break;
-                case Command.Slot: loadouts.Slot(arg/10,arg%10); Refresh(); break;
+                case Command.Slot: loadouts.Slot(arg/10,arg%10); if (Current == Page.Lobby) room.Submit(Hand(0),false); Refresh(); break;
                 case Command.Choice:
                     int player = arg / 10;
                     if (loadouts.Choice(player, arg % 10, player == 1 ? 0 : progress.LastVictory, out int slot))
                     {
                         Refresh();
+                        if (Current == Page.Lobby) room.Submit(Hand(0),false);
                         Focus("p" + player + "slot" + slot);
                     }
                     break;
@@ -204,10 +249,10 @@ namespace PirateGame.UI
                 case Command.Invite: online.Invite(); Refresh(); break;
                 case Command.RetrySteam: online.Retry(); Refresh(); break;
                 case Command.HostMap: if (online.Host) Go(Page.Map); break;
-                case Command.Ready: if (online.LobbyId != 0) { ReadyPreview=true; Refresh(); Focus("edit"); } break;
-                case Command.Edit: ReadyPreview=false; Refresh(); Focus("ready"); break;
+                case Command.Ready: room.Submit(Hand(0),true); break;
+                case Command.Edit: room.Submit(Hand(0),false); break;
                 case Command.Advance:
-                    if (++dialogue >= catalog.dialogue.Length) Go(Page.Hud);
+                    if (++dialogue >= catalog.dialogue.Length) LaunchField();
                     else { Refresh(); Focus("advance"); }
                     break;
                 case Command.Interact: shopSlot=0; Go(Page.Shop); break;
@@ -217,8 +262,9 @@ namespace PirateGame.UI
                 case Command.Pause: pauseBack=Current; Go(Page.Pause); break;
                 case Command.Resume: Go(pauseBack); break;
                 case Command.LeaveMatch: case Command.ContinueResult: ReturnToMode(); break;
+                case Command.StartMatch: if (Current == Page.Lobby) room.StartMatch(); break;
                 case Command.OnlinePreview:
-                    if (Current == Page.Lobby && online.LobbyId != 0 && DevelopmentPreview) BeginPreview();
+                    // The old preview is available as a prefab in the Editor.
                     break;
                 case Command.MainMenu:
                     if (online.LobbyId != 0) { observedLobby = 0; online.Leave(); }
@@ -257,14 +303,14 @@ namespace PirateGame.UI
         void SetPanelsVisible()
         {
             View.Show("panels", !MapVisible);
-            if (Current == Page.Lobby) View.Show("onlinePreview", DevelopmentPreview && !MapVisible);
+            if (Current == Page.Lobby) View.Show("onlinePreview", false);
         }
         void SelectLevel(int value)
         {
             if (value < 1 || value > UnlockedLevel) { Focus("fight"); return; }
             SelectedLevel=value; Refresh(); Focus("fight");
         }
-        void BeginPreview() { dialogue=0; Go(Mode==PreviewMode.Campaign ? Page.Dialogue : Page.Hud); }
+        void BeginPreview() { dialogue=0; if (Mode == PreviewMode.Campaign) Go(Page.Dialogue); else LaunchField(); }
         void ReturnToMode()
         {
             if (Mode == PreviewMode.Online) Go(online.LobbyId != 0 ? Page.Lobby : Page.Multiplayer);
@@ -272,6 +318,7 @@ namespace PirateGame.UI
         }
         public void Back()
         {
+            if (launch.Busy) return;
             if (QuitOpen) { Execute(Command.CancelQuit); return; }
             if (MapVisible) { peeking=held=false; SetPanelsVisible(); Focus("peek"); return; }
             switch (Current)
@@ -337,7 +384,7 @@ namespace PirateGame.UI
                     break;
                 case Page.AI: v.Label("difficulty","AI — "+new[]{"EASY","NORMAL","HARD"}[difficulty]); break;
                 case Page.Lobby:
-                    v.Show("onlinePreview", DevelopmentPreview);
+                    v.Show("onlinePreview", false);
                     v.Item("confirmed").GetComponent<ButtonFeedback>().SetConfirmed(ReadyPreview);
                     v.Show("readyModal",ReadyPreview); v.Show("ready",!ReadyPreview);
                     

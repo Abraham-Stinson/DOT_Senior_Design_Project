@@ -1,0 +1,26 @@
+{
+  "unity": "6000.3.26f1",
+  "buildReport": "[ClosureBuild] Assets/Settings/Build Profiles/Windows_Gameplay.asset | Assets/Scenes/MainMenu.unity, Assets/Gameplay/Scenes/Level_01.unity | StandaloneWindows64 | ForceOptimizeScriptCompilation, Il2CPP, CompressTextures, StripDebugSymbols, ShaderLivelinkSupport, Development | Succeeded | errors=0 warnings=0",
+  "delivery": "Builds/WindowsGameplay_M221C/",
+  "verifiedFileCount": 319,
+  "profileGuid": "4799011a23191c64492aa0c6c972e5e3",
+  "verifiedSceneOrder": [
+    "Assets/Scenes/MainMenu.unity",
+    "Assets/Gameplay/Scenes/Level_01.unity"
+  ],
+  "peMachine": "0x8664",
+  "developmentSteamAppId": 480,
+  "standaloneSmoke": {
+    "window": true,
+    "clean": true,
+    "steam": true,
+    "exitCode": 0
+  },
+  "assemblySha256": {
+    "PirateGame.Gameplay.dll": "8d38f7b6d07c16bb421347f0ec7da09d0263f8821c564c09bf34494b6168d96d",
+    "PirateGame.Networking.Core.dll": "058af3d78e0f7fb48ccde578f5ce0af477b7fbc08db683bbbd4aa7259b4f28ac",
+    "PirateGame.Networking.dll": "6b97a4ee31d94b3ce36f8b92993dc1df3f0fdd03b2e055ca33b5ecde9a86055f",
+    "PirateGame.UI.dll": "8aaea111d22bf6b7493c591a0f02f989f217bc872750e602ec3000c6e2948d81",
+    "PirateGame.UI.Presentation.dll": "fe7bfe4b3a86708f0e57558c120b9aef0d859877f428605218eff6f1aa2ccb6f"
+  }
+}

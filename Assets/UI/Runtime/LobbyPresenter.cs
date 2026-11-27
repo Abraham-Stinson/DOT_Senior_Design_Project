@@ -9,9 +9,10 @@ namespace PirateGame.UI
     public sealed class LobbyPresenter
     {
         readonly OnlineSessionCoordinator network;
+        readonly PirateGame.Gameplay.BattleRoom room;
         string notice = "";
         float copiedUntil;
-        public LobbyPresenter(OnlineSessionCoordinator network) { this.network = network; }
+        public LobbyPresenter(OnlineSessionCoordinator network,PirateGame.Gameplay.BattleRoom room) { this.network = network; this.room = room; }
         public ulong LobbyId => network.Lobby?.LobbyId ?? 0;
         public bool Host => network.Lobby?.IsOwner == true;
         public void Create() { notice = ""; network.CreateLobby(); }
@@ -68,16 +69,17 @@ namespace PirateGame.UI
                     : network.Session.IsAuthenticated;
                 peerState = connected ? "FishNet connected • " : "Connecting • ";
             }
-            view.Label("opponentReady", peerState + "Ready unknown");
+            view.Label("opponentReady", friend.Length == 0 ? "" : peerState + ((Host ? room.View.RedReady : room.View.BlueReady) ? "Ready" : "Preparing"));
             view.Label("p0title", Host ? "YOU / HOST" : "YOU / GUEST");
             view.Label("p0subtitle", steam.UserName);
-            view.Label("protocol", "Map preview only • Ready / Start unavailable");
+            view.Label("protocol", room.View.Map == null ? "Waiting for authenticated host" : "Map: First Voyage");
             string connection = network.Session.IsAuthenticated ? "Authenticated" : network.Session.State.ToString();
             view.Label("lobbyNotice", status.Length > 0 ? status : $"FishNet: {connection}  •  {lobby?.Members.Count ?? 0}/2");
             view.Enable("invite", online && LobbyId != 0 && (lobby?.Members.Count ?? 0) < 2);
             view.Enable("copy", LobbyId != 0);
             view.Enable("hostMap", Host);
-            view.Enable("startMatch", false);
+            view.Enable("startMatch", room.CanStart);
+            view.Enable("ready", network.Session.IsAuthenticated && room.View.Lobby == LobbyId && LobbyId != 0);
         }
 
         // The M0 technical panel and Unity Console retain the original native diagnostics.

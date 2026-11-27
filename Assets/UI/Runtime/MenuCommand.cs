@@ -9,7 +9,7 @@ namespace PirateGame.UI
         Start, Campaign, Skirmish, Multiplayer, Settings, Credits, Quit, CancelQuit, ConfirmQuit, Back,
         Node, Prepare, Local, AI, ContinueMap, JoinSecond, Difficulty, Fight, Peek, Slot, Choice,
         Create, Join, RetrySteam, Copy, Invite, HostMap, Ready, Edit, Advance, Interact, Pick, Buy,
-        CloseShop, Pause, Resume, LeaveMatch, Win, Lose, ContinueResult, Replay, Tab, ResetSettings, ApplySettings, Fullscreen, LeaveLobby, OnlinePreview, MainMenu
+        CloseShop, Pause, Resume, LeaveMatch, Win, Lose, ContinueResult, Replay, Tab, ResetSettings, ApplySettings, Fullscreen, LeaveLobby, OnlinePreview, MainMenu, StartMatch
     }
     [RequireComponent(typeof(Button))]
     public sealed class MenuCommand : MonoBehaviour, ISelectHandler, IPointerEnterHandler, IPointerExitHandler

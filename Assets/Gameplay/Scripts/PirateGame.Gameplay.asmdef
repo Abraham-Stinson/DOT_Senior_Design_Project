@@ -1,0 +1,5 @@
+{
+  "name":"PirateGame.Gameplay",
+  "references":["PirateGame.Networking","PirateGame.Networking.Core","FishNet.Runtime","Unity.InputSystem","UnityEngine.UI","Unity.TextMeshPro","PirateGame.UI.Presentation"],
+  "includePlatforms":["Editor","WindowsStandalone64","WindowsStandalone32","LinuxStandalone64","macOSStandalone"]
+}

@@ -21,8 +21,20 @@ namespace PirateGame.Gameplay
         public bool IsOnline =>
             gameMode == BattleMode.OnlinePvP;
 
+        public Vector3 BluePosition => player1Motor.transform.position;
+        public Vector3 RedPosition => player2Motor.transform.position;
+        public void SetOfflinePaused(bool paused)
+        {
+            if (IsOnline) return;
+            player1Input.enabled = !paused;
+            player2Input.enabled = !paused && gameMode == BattleMode.LocalPvP;
+            player1Motor.SetMovementEnabled(!paused);
+            player2Motor.SetMovementEnabled(!paused);
+        }
         private void Awake()
         {
+            var launch = FindFirstObjectByType<BattleLaunchService>();
+            if (launch && launch.Context != null) gameMode = launch.Context.Mode;
             ConfigurePlayers();
         }
 

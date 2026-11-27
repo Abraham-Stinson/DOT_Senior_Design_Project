@@ -1,6 +1,7 @@
 {
   "name": "PirateGame.UI",
   "references": [
+    "PirateGame.Gameplay",
     "Unity.TextMeshPro",
     "UnityEngine.UI",
     "Unity.InputSystem",

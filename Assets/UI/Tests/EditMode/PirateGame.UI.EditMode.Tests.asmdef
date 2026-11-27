@@ -1,6 +1,7 @@
 {
   "name": "PirateGame.UI.EditMode.Tests",
   "references": [
+    "PirateGame.Gameplay",
     "PirateGame.UI",
     "UnityEngine.UI",
     "Unity.TextMeshPro",

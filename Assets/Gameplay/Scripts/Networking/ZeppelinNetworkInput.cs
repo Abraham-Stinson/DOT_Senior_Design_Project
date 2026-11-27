@@ -84,11 +84,13 @@ public class ZeppelinNetworkInput : NetworkBehaviour
         SubmitInputServerRpc(input, ++sequence);
     }
 
+    public bool SuppressLocalInput { get; set; }
+
     private Vector2 ReadInput()
     {
         Vector2 input = Vector2.zero;
 
-        if (!Application.isFocused)
+        if (SuppressLocalInput || !Application.isFocused)
             return input;
 
 #if ENABLE_INPUT_SYSTEM

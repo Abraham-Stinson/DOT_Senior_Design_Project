@@ -1,6 +1,8 @@
 {
   "name": "PirateGame.UI.PlayMode.Tests",
   "references": [
+    "PirateGame.Gameplay",
+    "FishNet.Runtime",
     "PirateGame.UI",
     "PirateGame.Networking",
     "PirateGame.Networking.Core",
